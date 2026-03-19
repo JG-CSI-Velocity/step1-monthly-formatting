@@ -58,6 +58,8 @@ def format_all(
     settings,
     target_month: str | None = None,
     max_per_csm: int = 0,
+    csm_filter: str | None = None,
+    client_filter: str | None = None,
 ) -> FormatResult:
     """Read raw ODD files from retrieve_dir, format, write to watch_root.
 
@@ -77,7 +79,10 @@ def format_all(
     print(f"    Source: {root}")
     print(f"    Dest:   {out_root}")
 
-    csm_dirs = sorted(d for d in root.iterdir() if d.is_dir())
+    if csm_filter:
+        csm_dirs = [root / csm_filter] if (root / csm_filter).is_dir() else []
+    else:
+        csm_dirs = sorted(d for d in root.iterdir() if d.is_dir())
     total_csm = len(csm_dirs)
 
     for i, csm_dir in enumerate(csm_dirs, 1):
@@ -87,7 +92,9 @@ def format_all(
             print(f"  [{i}/{total_csm}] {csm_name} -- no {full_month} folder")
             continue
 
-        client_dirs = sorted(d for d in month_dir.iterdir() if d.is_dir())
+        all_client_dirs = sorted(d for d in month_dir.iterdir() if d.is_dir())
+        client_dirs = [d for d in all_client_dirs
+                       if client_filter is None or d.name == client_filter]
         print(f"  [{i}/{total_csm}] {csm_name} -- {len(client_dirs)} client(s)")
 
         count = 0

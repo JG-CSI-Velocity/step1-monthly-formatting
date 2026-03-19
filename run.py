@@ -67,7 +67,9 @@ def main():
         print("  STEP 1a: RETRIEVE (copy from CSM M: drive folders)")
         print("=" * 70)
         retrieve_result = retrieve_all(settings, target_month=month,
-                                        max_per_csm=args.max_per_csm)
+                                        max_per_csm=args.max_per_csm,
+                                        csm_filter=args.csm,
+                                        client_filter=args.client)
     else:
         print("  Skipping retrieve (--skip-retrieve)")
         print()
@@ -78,7 +80,9 @@ def main():
         print("  STEP 1b: FORMAT (7-step ODD formatting)")
         print("=" * 70)
         format_result = format_all(settings, target_month=month,
-                                    max_per_csm=args.max_per_csm)
+                                    max_per_csm=args.max_per_csm,
+                                    csm_filter=args.csm,
+                                    client_filter=args.client)
     else:
         print("  Skipping format (--skip-format)")
         print()

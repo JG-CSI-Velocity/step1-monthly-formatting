@@ -64,6 +64,8 @@ def retrieve_all(
     settings,
     target_month: str | None = None,
     max_per_csm: int = 0,
+    csm_filter: str | None = None,
+    client_filter: str | None = None,
 ) -> RetrieveResult:
     """Copy ODD files from CSM sources into retrieve_dir/CSM/YYYY.MM/ClientID/.
 
@@ -91,10 +93,11 @@ def retrieve_all(
     print(f"  Retrieving ODD files for {full_month} -> {dest_root}")
 
     sources = settings.csm_sources.sources
-    # Skip CSMs with placeholder paths
+    # Skip CSMs with placeholder paths, apply CSM filter
     active_sources = {
         name: path for name, path in sources.items()
         if str(path) != "UPDATE_THIS_PATH"
+        and (csm_filter is None or name == csm_filter)
     }
 
     if not active_sources:
@@ -108,7 +111,7 @@ def retrieve_all(
             pool.submit(
                 _scan_one_csm,
                 csm_name, source_dir, dest_root,
-                target_year, target_mm, max_per_csm,
+                target_year, target_mm, max_per_csm, client_filter,
             ): csm_name
             for csm_name, source_dir in active_sources.items()
         }
@@ -146,7 +149,7 @@ def retrieve_all(
     return result
 
 
-def _scan_one_csm(csm_name, source_dir, dest_root, target_year, target_mm, max_per_csm):
+def _scan_one_csm(csm_name, source_dir, dest_root, target_year, target_mm, max_per_csm, client_filter=None):
     """Scan a single CSM source in a worker thread."""
     per_csm = RetrieveResult()
 
@@ -156,11 +159,11 @@ def _scan_one_csm(csm_name, source_dir, dest_root, target_year, target_mm, max_p
     if not accessible:
         return csm_name, "OFFLINE", per_csm
 
-    _retrieve_csm(source_dir, csm_name, dest_root, target_year, target_mm, per_csm, max_per_csm)
+    _retrieve_csm(source_dir, csm_name, dest_root, target_year, target_mm, per_csm, max_per_csm, client_filter)
     return csm_name, "OK", per_csm
 
 
-def _retrieve_csm(source_dir, csm_name, dest_root, target_year, target_mm, result, max_files=0):
+def _retrieve_csm(source_dir, csm_name, dest_root, target_year, target_mm, result, max_files=0, client_filter=None):
     """Retrieve ODD files from a single CSM source folder."""
     count_before = len(result.copied)
 
@@ -171,19 +174,19 @@ def _retrieve_csm(source_dir, csm_name, dest_root, target_year, target_mm, resul
             if max_files and len(result.copied) - count_before >= max_files:
                 break
             _scan_dir_for_odds(month_dir, csm_name, dest_root, target_year, target_mm,
-                               result, max_files, count_before)
+                               result, max_files, count_before, client_filter)
             try:
                 for child in month_dir.iterdir():
                     if max_files and len(result.copied) - count_before >= max_files:
                         break
                     if child.is_dir():
                         _scan_dir_for_odds(child, csm_name, dest_root, target_year, target_mm,
-                                           result, max_files, count_before)
+                                           result, max_files, count_before, client_filter)
             except (PermissionError, OSError) as exc:
                 logger.warning("%s: error scanning %s: %s", csm_name, month_dir.name, exc)
     else:
         _scan_dir_for_odds(source_dir, csm_name, dest_root, target_year, target_mm,
-                           result, max_files, count_before)
+                           result, max_files, count_before, client_filter)
 
 
 def _find_month_dirs(source_dir, target_year, target_mm):
@@ -204,7 +207,7 @@ def _find_month_dirs(source_dir, target_year, target_mm):
 
 
 def _scan_dir_for_odds(directory, csm_name, dest_root, target_year, target_mm,
-                        result, max_files=0, count_base=0):
+                        result, max_files=0, count_base=0, client_filter=None):
     """Scan a single directory (non-recursive) for ODD xlsx and zip files."""
     try:
         entries = list(directory.iterdir())
@@ -226,10 +229,12 @@ def _scan_dir_for_odds(directory, csm_name, dest_root, target_year, target_mm,
         if name_lower.endswith(".xlsx"):
             parsed = parse_odd_filename(f.name)
             if parsed and parsed["year"] == target_year and parsed["month"] == target_mm:
+                if client_filter and parsed["client_id"] != client_filter:
+                    continue
                 _place_odd(f, parsed, csm_name, dest_root, result)
 
         elif name_lower.endswith(".zip"):
-            _process_zip(f, csm_name, target_year, target_mm, dest_root, result)
+            _process_zip(f, csm_name, target_year, target_mm, dest_root, result, client_filter)
 
 
 def _place_odd(xlsx_data, parsed, csm_name, dest_root, result, source_label=None):
@@ -256,7 +261,7 @@ def _place_odd(xlsx_data, parsed, csm_name, dest_root, result, source_label=None
         print(f"      x {parsed['filename']}: {exc}")
 
 
-def _process_zip(zf_path, csm_name, target_year, target_mm, dest_root, result):
+def _process_zip(zf_path, csm_name, target_year, target_mm, dest_root, result, client_filter=None):
     """Process a zip archive: copy to local temp first (avoids slow SMB seeks)."""
     client_id_from_zip = parse_oddd_zip(zf_path.name)
     month_info = parse_month_folder(zf_path.parent.name)
@@ -270,6 +275,10 @@ def _process_zip(zf_path, csm_name, target_year, target_mm, dest_root, result):
         lead_digits = re.match(r"^(\d+)", zf_path.stem)
         if lead_digits:
             client_id_from_zip = lead_digits.group(1)
+
+    # Skip if client filter doesn't match
+    if client_filter and client_id_from_zip and client_id_from_zip != client_filter:
+        return
 
     try:
         with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
