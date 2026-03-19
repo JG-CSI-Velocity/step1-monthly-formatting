@@ -85,6 +85,8 @@ def process_csm(csm_name, src_directory, staging_directory, output_directory, lo
             new_path = os.path.join(staging_directory, new_name)
             original_path = os.path.join(staging_directory, csv_file)
             if original_path != new_path:
+                if os.path.exists(new_path):
+                    os.remove(new_path)
                 os.rename(original_path, new_path)
                 log_message(f"    Renamed: {csv_file} -> {new_name}", log_file)
             renamed_csv_files.append(new_name)
