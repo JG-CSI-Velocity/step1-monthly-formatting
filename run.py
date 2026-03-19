@@ -34,14 +34,16 @@ def log_message(message, log_file=None):
             f.write(message + "\n")
 
 
-def process_csm(csm_name, src_directory, dst_directory, log_file=None):
-    """Process all ODD files for a single CSM.
+def process_csm(csm_name, src_directory, dst_directory, log_file=None, client_filter=None):
+    """Process ODD files for a single CSM.
 
     1. Unzip any ZIPs in the source directory
     2. Rename CSVs (truncate after 'ODD')
     3. Convert CSVs to Excel
     4. Run 7-step formatting on each Excel file
     5. Save formatted output to destination
+
+    If client_filter is set, only process files starting with that client ID.
     """
     if not os.path.exists(src_directory):
         log_message(f"  {csm_name}: Source not found: {src_directory}", log_file)
@@ -60,7 +62,8 @@ def process_csm(csm_name, src_directory, dst_directory, log_file=None):
     error_count = 0
 
     # Step 1: Unzip ZIPs
-    zip_files = [f for f in os.listdir(src_directory) if f.endswith('.zip')]
+    zip_files = [f for f in os.listdir(src_directory) if f.endswith('.zip')
+                 and (client_filter is None or f.startswith(client_filter))]
     if zip_files:
         log_message(f"  {csm_name}: Found {len(zip_files)} ZIP file(s)", log_file)
 
@@ -73,7 +76,8 @@ def process_csm(csm_name, src_directory, dst_directory, log_file=None):
             log_message(f"    Extracted: {item}", log_file)
 
     # Step 2: Rename CSVs (truncate after 'ODD')
-    csv_files = [f for f in os.listdir(src_directory) if f.endswith('.csv')]
+    csv_files = [f for f in os.listdir(src_directory) if f.endswith('.csv')
+                 and (client_filter is None or f.startswith(client_filter))]
     renamed_csv_files = []
     for csv_file in csv_files:
         odd_position = csv_file.find('ODD')
@@ -115,7 +119,8 @@ def process_csm(csm_name, src_directory, dst_directory, log_file=None):
 
     # Step 4: Format Excel files (7-step pipeline)
     excel_files = [f for f in os.listdir(dst_directory)
-                   if f.endswith('.xlsx') and 'formatted' not in f.lower()]
+                   if f.endswith('.xlsx') and 'formatted' not in f.lower()
+                   and (client_filter is None or f.startswith(client_filter))]
     if excel_files:
         log_message(f"  {csm_name}: Formatting {len(excel_files)} Excel file(s)", log_file)
 
@@ -153,6 +158,8 @@ def main():
                         help="Target month in YYYY.MM format (default: current month)")
     parser.add_argument("--csm", type=str, default=None,
                         help="Process only this CSM (default: all)")
+    parser.add_argument("--client", type=str, default=None,
+                        help="Process only this client ID (default: all)")
     parser.add_argument("--config", type=str, default=None,
                         help="Path to ars_config.json")
     args = parser.parse_args()
@@ -162,7 +169,11 @@ def main():
     print()
     print("=" * 70)
     print("  STEP 1: FORMAT ODD FILES")
-    print(f"  Month: {month}")
+    print(f"  Month:  {month}")
+    if args.csm:
+        print(f"  CSM:    {args.csm}")
+    if args.client:
+        print(f"  Client: {args.client}")
     print("=" * 70)
     print()
 
@@ -203,7 +214,7 @@ def main():
         log_message(f"    Source: {src}", log_file)
         log_message(f"    Dest:   {dst}", log_file)
 
-        success, errors = process_csm(csm_name, str(src), str(dst), log_file)
+        success, errors = process_csm(csm_name, str(src), str(dst), log_file, args.client)
         total_success += success
         total_errors += errors
 
