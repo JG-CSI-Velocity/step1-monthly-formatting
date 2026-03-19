@@ -61,8 +61,9 @@ def process_csm(csm_name, src_directory, dst_directory, log_file=None, client_fi
     success_count = 0
     error_count = 0
 
-    # Step 1: Unzip ZIPs
+    # Step 1: Unzip ODD ZIPs only (skip transaction files, etc.)
     zip_files = [f for f in os.listdir(src_directory) if f.endswith('.zip')
+                 and 'odd' in f.lower()
                  and (client_filter is None or f.startswith(client_filter))]
     if zip_files:
         log_message(f"  {csm_name}: Found {len(zip_files)} ZIP file(s)", log_file)
@@ -75,8 +76,9 @@ def process_csm(csm_name, src_directory, dst_directory, log_file=None, client_fi
             shutil.move(item_path, os.path.join(unzipped_dir, item))
             log_message(f"    Extracted: {item}", log_file)
 
-    # Step 2: Rename CSVs (truncate after 'ODD')
+    # Step 2: Rename ODD CSVs only (truncate after 'ODD')
     csv_files = [f for f in os.listdir(src_directory) if f.endswith('.csv')
+                 and 'odd' in f.lower()
                  and (client_filter is None or f.startswith(client_filter))]
     renamed_csv_files = []
     for csv_file in csv_files:
