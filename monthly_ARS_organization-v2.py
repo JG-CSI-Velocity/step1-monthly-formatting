@@ -13,16 +13,19 @@ from pathlib import Path
 CURRENT_MONTH = datetime.now().strftime("%Y.%m")
 
 # Paths
-CONFIG_FILE = r"C:\Users\james.gilmore\OneDrive - Computer Services, Inc\Desktop\ARS\ARS Analysis\Scripts\Config\clients_config.json"
-FORMATTING_SCRIPT = r"C:\Users\james.gilmore\OneDrive - Computer Services, Inc\Desktop\ARS\ARS Analysis\Scripts\Formatting Automation\UnifiedARSFormattingV1.py"
+CONFIG_FILE = r"M:\ARS\Config\clients_config.json"
+FORMATTING_SCRIPT = r"M:\ARS\00_Formatting\00-Scripts\UnifiedARSFormattingV1.py"
 
 # Source directories
 DEFERRED_BASE = r"M:\My Rewards Logistics\Financial Industry\Rewards ARS Clients (Banks & Credit Unions)"
 WORKBOOK_BASE = r"R:"
-ODD_SOURCE_BASE = r"C:\Users\james.gilmore\OneDrive - Computer Services, Inc\Desktop\ARS\ARS Analysis\Raw Data\Ready For Formatting"
+ODD_SOURCE_BASE = r"M:\ARS\00_Formatting\01-Data-Ready for Formatting"
 
-# Destination directory
-ANALYSIS_BASE = r"C:\Users\james.gilmore\OneDrive - Computer Services, Inc\Desktop\ARS\ARS Analysis\Raw Data\Ready for Analysis"
+# Destination directory (formatted ODD files land here after Step 1)
+FORMATTED_BASE = r"M:\ARS\00_Formatting\02-Data-Ready for Analysis"
+
+# Final analysis directory (where per-client folders with all files go)
+ANALYSIS_BASE = r"M:\ARS\00_Formatting\02-Data-Ready for Analysis"
 
 # Log file path
 LOG_FILE = None  # Will be set after creating monthly folder
@@ -75,7 +78,7 @@ def run_formatting_script(client_ids):
     log_separator()
     
     # Check if formatting has already been done for ALL clients in config
-    processed_folder = os.path.join(ODD_SOURCE_BASE, CURRENT_MONTH, "Processed")
+    processed_folder = os.path.join(FORMATTED_BASE, CURRENT_MONTH, "Processed")
     if os.path.exists(processed_folder):
         existing_files = [f for f in os.listdir(processed_folder) if f.endswith('.xlsx')]
         
@@ -287,7 +290,7 @@ def copy_odd_files(client_ids, monthly_analysis_folder):
     error_count = 0
     total_clients = len(client_ids)
     
-    odd_source = os.path.join(ODD_SOURCE_BASE, CURRENT_MONTH, "Processed")
+    odd_source = os.path.join(FORMATTED_BASE, CURRENT_MONTH, "Processed")
     
     if not os.path.exists(odd_source):
         log_message(f"ODD source folder does not exist: {odd_source}", "ERROR")

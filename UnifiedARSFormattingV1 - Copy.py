@@ -11,10 +11,10 @@ print("🚀 Merged Script Started!")
 current_month_folder = datetime.now().strftime("%Y.%m")
 
 # 📂 Define paths
-#src_directory = rf"M:\JamesG\OD Data Dumps\{current_month_folder}"
-#dst_directory = rf"C:\Users\james.gilmore\Desktop\ARS\ARS Analysis\Raw Data\Ready For Formatting\{current_month_folder}"
-src_directory = rf"C:\Users\james.gilmore\analysis-platform\data\Neighborhood\ODD"
-dst_directory = rf"C:\Users\james.gilmore\analysis-platform\data\Neighborhood\ODD"
+# Source: raw ZIP/CSV files from the vendor
+src_directory = rf"M:\ARS\00_Formatting\01-Data-Ready for Formatting\{current_month_folder}"
+# Destination: formatted Excel files ready for analysis
+dst_directory = rf"M:\ARS\00_Formatting\02-Data-Ready for Analysis\{current_month_folder}"
 
 
 unzipped_directory = os.path.join(src_directory, "unzipped")  # ✅ Extracted ZIP files
