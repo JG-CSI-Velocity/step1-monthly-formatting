@@ -61,7 +61,11 @@ def process_csm(csm_name, src_directory, dst_directory, log_file=None, client_fi
     success_count = 0
     error_count = 0
 
-    # Step 1: Unzip ODD ZIPs only (skip transaction files, etc.)
+    # Step 1: Copy ODD ZIPs from CSM source to staging, extract there
+    # NEVER modifies the CSM source folder
+    staging_dir = os.path.join(dst_directory, "_staging")
+    os.makedirs(staging_dir, exist_ok=True)
+
     zip_files = [f for f in os.listdir(src_directory) if f.endswith('.zip')
                  and 'odd' in f.lower()
                  and (client_filter is None or f.startswith(client_filter))]
@@ -70,23 +74,25 @@ def process_csm(csm_name, src_directory, dst_directory, log_file=None, client_fi
 
     for item in zip_files:
         item_path = os.path.join(src_directory, item)
+        staged_zip = os.path.join(staging_dir, item)
         if zipfile.is_zipfile(item_path):
-            with zipfile.ZipFile(item_path, 'r') as zip_ref:
-                zip_ref.extractall(src_directory)
-            shutil.move(item_path, os.path.join(unzipped_dir, item))
-            log_message(f"    Extracted: {item}", log_file)
+            shutil.copy2(item_path, staged_zip)
+            with zipfile.ZipFile(staged_zip, 'r') as zip_ref:
+                zip_ref.extractall(staging_dir)
+            os.remove(staged_zip)
+            log_message(f"    Copied + extracted: {item}", log_file)
 
-    # Step 2: Rename ODD CSVs only (truncate after 'ODD')
-    csv_files = [f for f in os.listdir(src_directory) if f.endswith('.csv')
+    # Step 2: Find ODD CSVs in staging, rename (truncate after 'ODD')
+    csv_files = [f for f in os.listdir(staging_dir) if f.endswith('.csv')
                  and 'odd' in f.lower()
                  and (client_filter is None or f.startswith(client_filter))]
     renamed_csv_files = []
     for csv_file in csv_files:
-        odd_position = csv_file.find('ODD')
+        odd_position = csv_file.upper().find('ODD')
         if odd_position != -1:
             new_name = csv_file[:odd_position + 3] + '.csv'
-            new_path = os.path.join(src_directory, new_name)
-            original_path = os.path.join(src_directory, csv_file)
+            new_path = os.path.join(staging_dir, new_name)
+            original_path = os.path.join(staging_dir, csv_file)
             if original_path != new_path:
                 os.rename(original_path, new_path)
                 log_message(f"    Renamed: {csv_file} -> {new_name}", log_file)
@@ -94,10 +100,10 @@ def process_csm(csm_name, src_directory, dst_directory, log_file=None, client_fi
         else:
             renamed_csv_files.append(csv_file)
 
-    # Step 3: Convert CSVs to Excel
+    # Step 3: Convert CSVs to Excel in destination
     for csv_file in renamed_csv_files:
         try:
-            csv_path = os.path.join(src_directory, csv_file)
+            csv_path = os.path.join(staging_dir, csv_file)
             df = pd.read_csv(csv_path, skiprows=4, low_memory=False)
 
             if df.empty:
@@ -112,7 +118,6 @@ def process_csm(csm_name, src_directory, dst_directory, log_file=None, client_fi
             excel_path = os.path.join(dst_directory, excel_filename)
             df.to_excel(excel_path, index=False, engine='openpyxl')
 
-            shutil.move(csv_path, os.path.join(processed_csv_dir, csv_file))
             log_message(f"    Converted: {csv_file} -> {excel_filename}", log_file)
 
         except Exception as e:
