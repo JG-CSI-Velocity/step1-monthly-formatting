@@ -1,0 +1,37 @@
+{
+    "paths": {
+        "ars_base": "M:\\ARS",
+        "retrieve_dir": "00_Formatting\\01-Data-Ready for Formatting",
+        "watch_root": "00_Formatting\\02-Data-Ready for Analysis",
+        "incoming_dir": "00_Formatting",
+        "presentations_dir": "Presentations\\Presentation Excels",
+        "archive_dir": "Presentations\\Presentation Excels\\Archive",
+        "config_dir": "Config",
+        "log_dir": "Logs",
+        "template_path": "Presentations\\2025-CSI-PPT-Template.pptx",
+        "tracker_path": "Config\\run_tracker.json"
+    },
+    "csm_sources": {
+        "sources": {
+            "JamesG": "UPDATE_THIS_PATH",
+            "Jordan": "UPDATE_THIS_PATH",
+            "Aaron": "UPDATE_THIS_PATH",
+            "Gregg": "UPDATE_THIS_PATH",
+            "Dan": "UPDATE_THIS_PATH",
+            "Max": "UPDATE_THIS_PATH"
+        }
+    },
+    "pipeline": {
+        "skip_pptx": false,
+        "skip_excel_archive": false,
+        "chart_dpi": 150,
+        "max_workers": 1,
+        "use_local_temp": false
+    },
+    "logging": {
+        "level": "INFO",
+        "log_dir": "Logs",
+        "rotation": "10 MB",
+        "retention_days": 30
+    }
+}
