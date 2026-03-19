@@ -35,6 +35,27 @@ if not defined CSM_NAME (
 echo.
 echo   Selected: %CSM_NAME%
 echo.
+
+:: Read current path from config for this CSM
+for /f "tokens=2 delims=:," %%a in ('findstr /i "%CSM_NAME%" "%~dp0configs\ars_config.json"') do (
+    set CURRENT_PATH=%%~a
+)
+set CURRENT_PATH=%CURRENT_PATH:"=%
+set CURRENT_PATH=%CURRENT_PATH: =%
+
+echo   Your current source folder:
+echo     %CURRENT_PATH%
+echo.
+echo   Press ENTER to keep this path, or type a new path:
+echo.
+set /p NEW_PATH="   Path (or ENTER to keep): "
+
+if not "%NEW_PATH%"=="" (
+    echo   Updated path to: %NEW_PATH%
+    echo   NOTE: To save permanently, update configs\ars_config.json
+)
+
+echo.
 echo   Enter a 4-digit client ID, or type ALL to process every client.
 echo.
 set /p CLIENT_ID="   Client ID (or ALL): "
