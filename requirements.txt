@@ -7,3 +7,5 @@ python-pptx
 matplotlib
 numpy
 pandas
+fastapi
+uvicorn
