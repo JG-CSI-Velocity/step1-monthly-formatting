@@ -272,7 +272,7 @@ footer { text-align: center; padding: 28px; font-size: 11px; color: var(--faint)
         </div>
         <div class="card">
             <div class="card-header">
-                <div class="card-title">Reports by Analyst</div>
+                <div class="card-title">Reports by CSM</div>
                 <div class="card-meta">March 2026</div>
             </div>
             <div class="chart-container"><canvas id="chartAnalysts"></canvas></div>
@@ -293,13 +293,9 @@ footer { text-align: center; padding: 28px; font-size: 11px; color: var(--faint)
             <div class="card-meta">Last 10</div>
         </div>
         <table class="recent-table">
-            <thead><tr><th>Client</th><th>Product</th><th>Analyst</th><th>Date</th><th>Duration</th><th>Status</th></tr></thead>
-            <tbody>
-                <tr><td><strong>Guardians CU</strong> <span class="mono" style="color:var(--muted);font-size:11px;">#1200</span></td><td>ARS Full</td><td>James</td><td>Mar 19</td><td class="mono">22 min</td><td><span class="badge badge-green">Complete</span></td></tr>
-                <tr><td><strong>Pioneer FCU</strong> <span class="mono" style="color:var(--muted);font-size:11px;">#1217</span></td><td>ARS Full</td><td>James</td><td>Mar 19</td><td class="mono">18 min</td><td><span class="badge badge-green">Complete</span></td></tr>
-                <tr><td><strong>Connex CU</strong> <span class="mono" style="color:var(--muted);font-size:11px;">#1453</span></td><td>TXN</td><td>Jordan</td><td>Mar 18</td><td class="mono">34 min</td><td><span class="badge badge-green">Complete</span></td></tr>
-                <tr><td><strong>Neighborhood CU</strong> <span class="mono" style="color:var(--muted);font-size:11px;">#1673</span></td><td>Deposits</td><td>James</td><td>Mar 17</td><td class="mono">12 min</td><td><span class="badge badge-green">Complete</span></td></tr>
-                <tr><td><strong>USF FCU</strong> <span class="mono" style="color:var(--muted);font-size:11px;">#1780</span></td><td>ARS Full</td><td>Aaron</td><td>Mar 16</td><td class="mono">--</td><td><span class="badge badge-red">Failed</span></td></tr>
+            <thead><tr><th>Client</th><th>Product</th><th>CSM</th><th>Date</th><th>Duration</th><th>Status</th></tr></thead>
+            <tbody id="recentRunsBody">
+                <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px;">Run history will appear here after reports are generated.</td></tr>
             </tbody>
         </table>
     </div>
@@ -308,61 +304,75 @@ footer { text-align: center; padding: 28px; font-size: 11px; color: var(--faint)
 <!-- ═══════════════ GENERATE ═══════════════ -->
 <div class="page" id="page-generate">
     <div class="page-title">Generate Reports</div>
-    <div class="page-sub">Select a client and analysis product to build a presentation-ready deck.</div>
+    <div class="page-sub">Create a presentation-ready PowerPoint deck for any client in three steps: select your client, choose an analysis product, and click Generate.</div>
 
-    <div class="config-row">
-        <div class="config-field"><div class="label">Analyst</div>
-            <select class="sel"><option>James Gilmore</option><option>Jordan</option><option>Aaron</option><option>Gregg</option><option>Dan</option><option>Max</option></select>
+    <!-- Step 1: Who and What -->
+    <div class="card" style="margin-bottom: 24px;">
+        <div class="card-header">
+            <div class="card-title">Step 1: Select Your Client</div>
+            <div class="card-meta">Choose your name, the reporting period, and the client you want to analyze.</div>
         </div>
-        <div class="config-field"><div class="label">Period</div>
-            <select class="sel"><option>March 2026</option><option>February 2026</option><option>January 2026</option></select>
-        </div>
-        <div class="config-field"><div class="label">Client</div>
-            <select class="sel" id="gClientSel" onchange="updateGenClientFromAPI()">
-                <option value="1200">1200 — Guardians Credit Union</option>
-                <option value="1217">1217 — Pioneer Federal Credit Union</option>
-                <option value="1453">1453 — Connex Credit Union</option>
-                <option value="1673">1673 — Neighborhood Credit Union</option>
-            </select>
+        <div class="config-row" style="margin-bottom: 0;">
+            <div class="config-field"><div class="label">CSM</div>
+                <select class="sel" id="gCsmSel"></select>
+            </div>
+            <div class="config-field"><div class="label">Period</div>
+                <select class="sel" id="gMonthSel"></select>
+            </div>
+            <div class="config-field"><div class="label">Client</div>
+                <select class="sel" id="gClientSel" onchange="updateGenClientFromAPI()"></select>
+            </div>
         </div>
     </div>
 
+    <!-- Client info + config -->
     <div class="client-banner">
         <div>
-            <div class="cb-name" id="gCbName">Guardians Credit Union</div>
-            <div class="cb-id" id="gCbId">#1200 &middot; Tampa, FL</div>
+            <div class="cb-name" id="gCbName">Select a client above</div>
+            <div class="cb-id" id="gCbId"></div>
         </div>
         <div class="cb-stats">
-            <div><div class="cb-val" id="gCbAcct">24,812</div><div class="cb-label">Accounts</div></div>
-            <div><div class="cb-val" id="gCbLast">Feb 26</div><div class="cb-label">Last Run</div></div>
+            <div><div class="cb-val" id="gCbAcct">--</div><div class="cb-label">Accounts</div></div>
+            <div><div class="cb-val" id="gCbLast">--</div><div class="cb-label">Last Run</div></div>
         </div>
-        <div style="display:flex;gap:6px;">
-            <span class="badge badge-green">ODD</span>
-            <span class="badge badge-green">TXN</span>
-            <span class="badge badge-green">Z-ACCT</span>
-            <span class="badge badge-green">CONFIG</span>
-        </div>
+        <div id="gFileStatus" style="display:flex;gap:6px;"></div>
     </div>
 
-    <!-- Client Config -->
     <div class="config-detail" id="gConfigDetail">
-        <div class="cd-item"><div class="cd-label">IC Rate</div><div class="cd-value" id="cdIcRate">0.42%</div></div>
-        <div class="cd-item"><div class="cd-label">Eligible Stat Codes</div><div class="cd-value" id="cdStatCodes">O, D</div></div>
-        <div class="cd-item"><div class="cd-label">Product Codes</div><div class="cd-value" id="cdProdCodes">CHK, SAV</div></div>
-        <div class="cd-item"><div class="cd-label">NSF/OD Fee</div><div class="cd-value" id="cdNsfFee">$29.00</div></div>
-        <div class="cd-item"><div class="cd-label">DC Indicator</div><div class="cd-value" id="cdDcInd">DC Indicator</div></div>
-        <div class="cd-item"><div class="cd-label">Reg E Column</div><div class="cd-value" id="cdRegeCol">Reg E</div></div>
-        <div class="cd-item"><div class="cd-label">Branch Mapping</div><div class="cd-value" id="cdBranch">12 branches</div></div>
-        <div class="cd-item"><div class="cd-label">Data Start</div><div class="cd-value" id="cdStart">2018-01-01</div></div>
+        <div class="cd-item"><div class="cd-label">IC Rate</div><div class="cd-value" id="cdIcRate">--</div></div>
+        <div class="cd-item"><div class="cd-label">Eligible Stat Codes</div><div class="cd-value" id="cdStatCodes">--</div></div>
+        <div class="cd-item"><div class="cd-label">Product Codes</div><div class="cd-value" id="cdProdCodes">--</div></div>
+        <div class="cd-item"><div class="cd-label">NSF/OD Fee</div><div class="cd-value" id="cdNsfFee">--</div></div>
+        <div class="cd-item"><div class="cd-label">DC Indicator</div><div class="cd-value" id="cdDcInd">--</div></div>
+        <div class="cd-item"><div class="cd-label">Reg E Column</div><div class="cd-value" id="cdRegeCol">--</div></div>
+        <div class="cd-item"><div class="cd-label">Branch Mapping</div><div class="cd-value" id="cdBranch">--</div></div>
+        <div class="cd-item"><div class="cd-label">Data Start</div><div class="cd-value" id="cdStart">--</div></div>
     </div>
 
-    <div class="grid-4" style="margin-bottom: 24px;">
-        <div class="p-card on" onclick="selectProd('ars')"><div class="p-name">ARS Full Suite</div><div class="p-count">22</div><div class="p-unit">modules</div><div class="p-time">~ 15-25 min</div></div>
-        <div class="p-card" onclick="selectProd('txn')"><div class="p-name">Transaction</div><div class="p-count">35</div><div class="p-unit">modules</div><div class="p-time">~ 25-40 min</div></div>
-        <div class="p-card" onclick="selectProd('dep')"><div class="p-name">Deposits</div><div class="p-count">15</div><div class="p-unit">modules</div><div class="p-time">~ 10-20 min</div></div>
-        <div class="p-card" onclick="selectProd('custom')"><div class="p-name">Custom</div><div class="p-count">&mdash;</div><div class="p-unit">your pick</div><div class="p-time">varies</div></div>
+    <!-- Step 2: Generate -->
+    <div class="card" style="margin-bottom: 24px;">
+        <div class="card-header">
+            <div class="card-title">Step 2: Generate Your Report</div>
+            <div class="card-meta">Choose an analysis product and click Generate. The pipeline will run all selected modules and produce a PowerPoint deck and Excel workbook.</div>
+        </div>
+
+        <div class="run-bar" style="margin-top: 0; margin-bottom: 24px; border-radius: 8px;">
+            <div>
+                <div class="run-what" id="gRunWhat">Select a client and product</div>
+                <div class="run-meta" id="gRunMeta">--</div>
+            </div>
+            <button class="btn" onclick="smartRunGen()">Generate Report</button>
+        </div>
+
+        <div class="grid-4" style="margin-bottom: 0;">
+            <div class="p-card on" onclick="selectProd('ars')"><div class="p-name">ARS Full Suite</div><div class="p-count">22</div><div class="p-unit">modules</div><div class="p-time">~ 15-25 min</div></div>
+            <div class="p-card" onclick="selectProd('txn')"><div class="p-name">Transaction</div><div class="p-count">35</div><div class="p-unit">modules</div><div class="p-time">~ 25-40 min</div></div>
+            <div class="p-card" onclick="selectProd('dep')"><div class="p-name">Deposits</div><div class="p-count">15</div><div class="p-unit">modules</div><div class="p-time">~ 10-20 min</div></div>
+            <div class="p-card" onclick="selectProd('custom')"><div class="p-name">Custom</div><div class="p-count">&mdash;</div><div class="p-unit">your pick</div><div class="p-time">varies</div></div>
+        </div>
     </div>
 
+    <!-- Module details (expandable) -->
     <div class="modules-panel">
         <div class="modules-head">
             <div class="card-title" id="gModTitle">ARS Full Suite</div>
@@ -371,14 +381,7 @@ footer { text-align: center; padding: 28px; font-size: 11px; color: var(--faint)
         <div class="modules-body" id="gModBody"></div>
     </div>
 
-    <div class="run-bar">
-        <div>
-            <div class="run-what" id="gRunWhat">ARS Full Suite for Guardians Credit Union</div>
-            <div class="run-meta" id="gRunMeta">22 modules // est. 15-25 min</div>
-        </div>
-        <button class="btn" onclick="smartRunGen()">Generate Report</button>
-    </div>
-
+    <!-- Progress (hidden until run starts) -->
     <div class="prog-section card" id="gProg">
         <div class="card-header">
             <div class="card-title">Running Analysis</div>
@@ -388,10 +391,11 @@ footer { text-align: center; padding: 28px; font-size: 11px; color: var(--faint)
         <div class="prog-log" id="gProgLog"></div>
     </div>
 
+    <!-- Step 3: Downloads (hidden until run completes) -->
     <div class="dl-grid" id="gDl">
-        <div class="card dl-card"><div class="dl-ext">.pptx</div><div class="dl-name">PowerPoint Deck</div><div class="dl-meta">52 slides &middot; 8.4 MB</div><button class="btn" style="margin-top:12px;width:100%;">Download</button></div>
-        <div class="card dl-card"><div class="dl-ext">.xlsx</div><div class="dl-name">Excel Workbook</div><div class="dl-meta">22 sheets &middot; 3.1 MB</div><button class="btn btn-dark" style="margin-top:12px;width:100%;">Download</button></div>
-        <div class="card dl-card"><div class="dl-ext">.zip</div><div class="dl-name">Complete Package</div><div class="dl-meta">All outputs &middot; 24 MB</div><button class="btn btn-dark" style="margin-top:12px;width:100%;">Download</button></div>
+        <div class="card dl-card"><div class="dl-ext">.pptx</div><div class="dl-name">PowerPoint Deck</div><div class="dl-meta" id="dlPptxMeta">--</div><button class="btn" style="margin-top:12px;width:100%;">Download</button></div>
+        <div class="card dl-card"><div class="dl-ext">.xlsx</div><div class="dl-name">Excel Workbook</div><div class="dl-meta" id="dlXlsxMeta">--</div><button class="btn btn-dark" style="margin-top:12px;width:100%;">Download</button></div>
+        <div class="card dl-card"><div class="dl-ext">.zip</div><div class="dl-name">Complete Package</div><div class="dl-meta" id="dlZipMeta">--</div><button class="btn btn-dark" style="margin-top:12px;width:100%;">Download</button></div>
     </div>
 </div>
 
@@ -426,15 +430,9 @@ footer { text-align: center; padding: 28px; font-size: 11px; color: var(--faint)
 
     <div class="card">
         <table class="recent-table">
-            <thead><tr><th>Client</th><th>Product</th><th>Modules</th><th>Analyst</th><th>Date</th><th>Duration</th><th>Slides</th><th>Status</th></tr></thead>
-            <tbody>
-                <tr><td><strong>Guardians CU</strong> #1200</td><td>ARS Full</td><td class="mono">22</td><td>James</td><td>Mar 19, 2026</td><td class="mono">22 min</td><td class="mono">52</td><td><span class="badge badge-green">Complete</span></td></tr>
-                <tr><td><strong>Pioneer FCU</strong> #1217</td><td>ARS Full</td><td class="mono">22</td><td>James</td><td>Mar 19, 2026</td><td class="mono">18 min</td><td class="mono">48</td><td><span class="badge badge-green">Complete</span></td></tr>
-                <tr><td><strong>Connex CU</strong> #1453</td><td>TXN</td><td class="mono">35</td><td>Jordan</td><td>Mar 18, 2026</td><td class="mono">34 min</td><td class="mono">71</td><td><span class="badge badge-green">Complete</span></td></tr>
-                <tr><td><strong>Neighborhood CU</strong> #1673</td><td>Deposits</td><td class="mono">15</td><td>James</td><td>Mar 17, 2026</td><td class="mono">12 min</td><td class="mono">28</td><td><span class="badge badge-green">Complete</span></td></tr>
-                <tr><td><strong>USF FCU</strong> #1780</td><td>ARS Full</td><td class="mono">22</td><td>Aaron</td><td>Mar 16, 2026</td><td class="mono">--</td><td class="mono">--</td><td><span class="badge badge-red">Failed</span></td></tr>
-                <tr><td><strong>Guardians CU</strong> #1200</td><td>TXN</td><td class="mono">35</td><td>James</td><td>Feb 28, 2026</td><td class="mono">31 min</td><td class="mono">68</td><td><span class="badge badge-green">Complete</span></td></tr>
-                <tr><td><strong>Connex CU</strong> #1453</td><td>ARS Full</td><td class="mono">22</td><td>Jordan</td><td>Feb 27, 2026</td><td class="mono">19 min</td><td class="mono">50</td><td><span class="badge badge-green">Complete</span></td></tr>
+            <thead><tr><th>Client</th><th>Product</th><th>Modules</th><th>CSM</th><th>Date</th><th>Duration</th><th>Slides</th><th>Status</th></tr></thead>
+            <tbody id="historyBody">
+                <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:24px;">Run history will appear here after reports are generated.</td></tr>
             </tbody>
         </table>
     </div>
@@ -615,10 +613,48 @@ async function loadClients() {
             opt.dataset.name = c.name;
             sel.appendChild(opt);
         });
-        // Update client display
         updateGenClientFromAPI();
     } catch(e) {
-        console.log('API not available, using mock data');
+        console.log('API not available, using defaults');
+    }
+}
+
+async function loadCSMs() {
+    const sel = document.getElementById('gCsmSel');
+    if (!sel) return;
+    try {
+        const resp = await fetch('/api/csms');
+        if (!resp.ok) throw '';
+        const data = await resp.json();
+        sel.innerHTML = '';
+        data.forEach(name => {
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            sel.appendChild(opt);
+        });
+    } catch(e) {
+        sel.innerHTML = '<option>James Gilmore</option><option>Jordan</option><option>Aaron</option><option>Gregg</option><option>Dan</option><option>Max</option>';
+    }
+}
+
+async function loadMonths() {
+    const sel = document.getElementById('gMonthSel');
+    if (!sel) return;
+    try {
+        const resp = await fetch('/api/months');
+        if (!resp.ok) throw '';
+        const data = await resp.json();
+        sel.innerHTML = '';
+        data.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m;
+            opt.textContent = m;
+            sel.appendChild(opt);
+        });
+    } catch(e) {
+        const now = new Date();
+        sel.innerHTML = `<option>${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}</option>`;
     }
 }
 
@@ -662,11 +698,9 @@ async function loadRecent() {
 
 // Real pipeline run via API
 async function runGenReal() {
-    const sel = document.getElementById('gClientSel');
-    const clientId = sel.value;
-    const csm = document.querySelector('#page-generate .sel').value.split(' ')[0];
-    const monthSel = document.querySelectorAll('#page-generate .sel')[1];
-    const month = monthSel ? monthSel.value.split(' ')[0] : '2026.03';
+    const clientId = document.getElementById('gClientSel').value;
+    const csm = document.getElementById('gCsmSel').value;
+    const month = document.getElementById('gMonthSel').value;
 
     // Start the run
     const resp = await fetch(`/api/run?csm=${csm}&month=${month}&client_id=${clientId}&product=${curProd}`, {method: 'POST'});
@@ -708,7 +742,9 @@ async function runGenReal() {
     };
 }
 
-// Try to load real data on page load
+// Load real data on page load
+loadCSMs();
+loadMonths();
 loadClients();
 loadRecent();
 
