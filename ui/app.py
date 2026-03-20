@@ -268,7 +268,7 @@ async def start_format(
     """Start a formatting run."""
     run_id = f"fmt_{client_id or 'all'}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:4]}"
 
-    formatting_run = ARS_BASE / "00_Formatting" / "00-Scripts" / "00_Formatting" / "run.py"
+    formatting_run = ARS_BASE / "00_Formatting" / "run.py"
     if not formatting_run.exists():
         raise HTTPException(status_code=500, detail=f"Formatting run.py not found at {formatting_run}")
 
@@ -332,7 +332,7 @@ async def start_run(
     run_id = f"{client_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:4]}"
 
     # Find both run scripts
-    formatting_run = ARS_BASE / "00_Formatting" / "00-Scripts" / "00_Formatting" / "run.py"
+    formatting_run = ARS_BASE / "00_Formatting" / "run.py"
     analysis_run = ARS_BASE / "01_Analysis" / "run.py"
 
     if not analysis_run.exists():
