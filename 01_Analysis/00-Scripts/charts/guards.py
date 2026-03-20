@@ -20,7 +20,31 @@ try:
         import matplotlib as _mpl
         _STYLE_DICT = _mpl.rc_params_from_file(str(_ARS_STYLE), use_default_template=False)
 except Exception:
-    pass
+    # If rc_params_from_file fails, manually parse the key settings
+    _STYLE_DICT = {
+        'figure.figsize': [14, 7],
+        'figure.facecolor': 'white',
+        'figure.dpi': 150,
+        'axes.facecolor': 'white',
+        'axes.grid': False,
+        'axes.spines.top': False,
+        'axes.spines.right': False,
+        'axes.spines.left': False,
+        'axes.spines.bottom': False,
+        'axes.labelsize': 20,
+        'axes.titlesize': 24,
+        'axes.titleweight': 'bold',
+        'grid.linewidth': 0.8,
+        'xtick.labelsize': 18,
+        'xtick.major.size': 0,
+        'xtick.minor.size': 0,
+        'ytick.labelsize': 18,
+        'ytick.major.size': 0,
+        'ytick.minor.size': 0,
+        'legend.fontsize': 16,
+        'legend.frameon': False,
+        'font.size': 14,
+    }
 
 
 @contextmanager

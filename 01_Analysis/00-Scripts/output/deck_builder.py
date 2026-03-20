@@ -243,11 +243,21 @@ class DeckBuilder:
         else:
             if slide.shapes.title:
                 slide.shapes.title.text = title_text
+                # Force dark blue title color (template default is white)
+                for paragraph in slide.shapes.title.text_frame.paragraphs:
+                    for run in paragraph.runs:
+                        run.font.color.rgb = RGBColor(0x1B, 0x36, 0x5D)  # Navy #1B365D
+                    if not paragraph.runs and paragraph.text:
+                        paragraph.font.color.rgb = RGBColor(0x1B, 0x36, 0x5D)
             if subtitle_text:
                 # New template: ph[1] is body/subtitle on most layouts
                 for ph_idx in [1, 13]:
                     try:
                         slide.placeholders[ph_idx].text = subtitle_text
+                        for paragraph in slide.placeholders[ph_idx].text_frame.paragraphs:
+                            for run in paragraph.runs:
+                                run.font.color.rgb = RGBColor(0x6B, 0x72, 0x80)  # Slate gray
+                                run.font.size = Pt(14)
                         break
                     except (KeyError, IndexError):
                         continue
@@ -481,29 +491,32 @@ class DeckBuilder:
                     slide.shapes.title.text = content.title
 
     def _build_screenshot_slide(self, slide, content: SlideContent) -> None:
-        """Build slide with title, subtitle, and single image."""
-        title_text = content.title
-        subtitle_text = None
+        """Build slide with a single chart image.
 
-        if "\n" in content.title:
-            parts = content.title.split("\n", 1)
-            title_text = parts[0]
-            subtitle_text = parts[1] if len(parts) > 1 else None
-
-        if content.layout_index == LAYOUT_CUSTOM:
-            # Custom Layout: remove all except title
-            to_remove = [ph for ph in slide.placeholders if ph.placeholder_format.idx != 0]
-            for ph in to_remove:
+        Charts already have titles rendered by matplotlib, so we skip
+        the slide title placeholder to avoid duplication. The chart
+        fills most of the slide with a small margin.
+        """
+        # Remove all placeholders -- chart image IS the content
+        for ph in slide.placeholders:
+            try:
                 ph.element.getparent().remove(ph.element)
+            except Exception:
+                pass
 
-        self._set_title(slide, content, title_text, subtitle_text)
-
-        left, top, width = self._get_single_positioning(content.layout_index)
-        # Full-canvas layouts get extra height
-        extra_h = Inches(4.8) if content.layout_index in (LAYOUT_CUSTOM, LAYOUT_BLANK, LAYOUT_PICTURE) else None
+        # Position chart to fill the slide with small margins
+        left = Inches(0.4)
+        top = Inches(0.3)
+        width = Inches(12.5)
+        max_height = Inches(6.8)
 
         if content.images and Path(content.images[0]).exists():
-            self._add_fitted_picture(slide, content.images[0], left, top, width, max_height=extra_h)
+            self._add_fitted_picture(slide, content.images[0], left, top, width, max_height=max_height)
+
+        # Add speaker notes with the title text for reference
+        if content.notes_text or content.title:
+            notes = slide.notes_slide
+            notes.notes_text_frame.text = content.notes_text or content.title
 
     def _build_screenshot_kpi_slide(self, slide, content: SlideContent) -> None:
         """Build slide with image and KPI callouts.
