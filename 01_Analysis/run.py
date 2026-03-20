@@ -26,18 +26,37 @@ class TeeLogger:
         log_path.parent.mkdir(parents=True, exist_ok=True)
         self.log_file = open(log_path, "w", encoding="utf-8")
         self.log_path = log_path
+        self._closed = False
 
     def write(self, message):
-        self.terminal.write(message)
-        self.log_file.write(message)
-        self.log_file.flush()
+        try:
+            self.terminal.write(message)
+        except Exception:
+            pass
+        if not self._closed:
+            try:
+                self.log_file.write(message)
+                self.log_file.flush()
+            except Exception:
+                pass
 
     def flush(self):
-        self.terminal.flush()
-        self.log_file.flush()
+        try:
+            self.terminal.flush()
+        except Exception:
+            pass
+        if not self._closed:
+            try:
+                self.log_file.flush()
+            except Exception:
+                pass
 
     def close(self):
-        self.log_file.close()
+        self._closed = True
+        try:
+            self.log_file.close()
+        except Exception:
+            pass
 
 
 # Add 00-Scripts to path so imports work
