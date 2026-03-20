@@ -449,7 +449,10 @@ footer { text-align: center; padding: 28px; font-size: 11px; color: var(--faint)
         <div class="prog-log" id="gProgLog"></div>
     </div>
 
-    <!-- Step 3: Downloads (hidden until run completes) -->
+    <!-- Step 3: Downloads (populated after run or from previous outputs) -->
+    <div style="margin-top:16px;display:flex;justify-content:flex-end;">
+        <button class="btn btn-dark" onclick="checkPreviousOutputs()" style="font-size:12px;padding:8px 16px;">Check Previous Outputs</button>
+    </div>
     <div class="dl-grid" id="gDl">
     </div>
 </div>
@@ -742,15 +745,49 @@ async function loadMonths() {
 
 function updateGenClientFromAPI() {
     const sel = document.getElementById('gClientSel');
-    if (!sel || !sel.selectedOptions[0]) return;
+    if (!sel || !sel.selectedOptions[0] || !sel.value) return;
     const opt = sel.selectedOptions[0];
-    const cfg = JSON.parse(opt.dataset.config || '{}');
-    const name = opt.dataset.name || opt.textContent.split(' — ')[1];
+    const name = opt.dataset.name || opt.textContent.split(' — ')[1] || '';
 
-    document.getElementById('gCbName').textContent = name;
+    document.getElementById('gCbName').textContent = name || `Client ${sel.value}`;
     document.getElementById('gCbId').textContent = `#${sel.value}`;
+    document.getElementById('cdClientId').textContent = sel.value;
 
-    // Update config display
+    // Try dataset first (populated by API), otherwise fetch directly
+    if (opt.dataset.config) {
+        _applyConfig(JSON.parse(opt.dataset.config));
+    } else {
+        // Fetch config from API for this specific client
+        fetch(`/api/clients`).then(r => r.json()).then(clients => {
+            const match = clients.find(c => c.id === sel.value);
+            if (match) {
+                document.getElementById('gCbName').textContent = match.name;
+                _applyConfig(match.config);
+            }
+        }).catch(() => {});
+    }
+
+    // Check file availability
+    const csm = document.getElementById('gCsmSel')?.value || '';
+    const month = document.getElementById('gMonthSel')?.value || '';
+    if (csm && month && sel.value) {
+        fetch(`/api/files/${csm}/${month}/${sel.value}`).then(r => r.json()).then(files => {
+            const status = document.getElementById('gFileStatus');
+            if (!status) return;
+            status.innerHTML = '';
+            if (files.odd?.status === 'ready') {
+                status.innerHTML += '<span class="badge badge-green">ODD READY</span>';
+            } else {
+                status.innerHTML += '<span class="badge badge-red">ODD MISSING</span>';
+            }
+        }).catch(() => {});
+    }
+
+    updRunBar();
+}
+
+function _applyConfig(cfg) {
+    if (!cfg) return;
     document.getElementById('cdIcRate').textContent = cfg.ic_rate ? (parseFloat(cfg.ic_rate) * 100).toFixed(2) + '%' : '--';
     document.getElementById('cdNsfFee').textContent = cfg.nsf_od_fee ? '$' + cfg.nsf_od_fee : '--';
     document.getElementById('cdStatCodes').textContent =
@@ -760,13 +797,10 @@ function updateGenClientFromAPI() {
     document.getElementById('cdRegeOptIn').textContent =
         cfg.reg_e_opt_in && cfg.reg_e_opt_in.length ? cfg.reg_e_opt_in.join(', ') : '--';
     document.getElementById('cdMailCode').textContent = cfg.eligible_mail || '--';
-    document.getElementById('cdClientId').textContent = sel.value;
     if (cfg.branch_mapping) {
         const count = typeof cfg.branch_mapping === 'object' ? Object.keys(cfg.branch_mapping).length : 0;
         document.getElementById('cdBranch').textContent = count > 0 ? count + ' branches' : '--';
     }
-
-    updRunBar();
 }
 
 async function loadRecent() {
@@ -936,6 +970,17 @@ async function loadDashboardData() {
 
 // Load dashboard data on page load
 loadDashboardData();
+
+async function checkPreviousOutputs() {
+    const csm = document.getElementById('gCsmSel')?.value || '';
+    const month = document.getElementById('gMonthSel')?.value || '';
+    const clientId = document.getElementById('gClientSel')?.value || '';
+    if (!csm || !month || !clientId) {
+        alert('Select a CSM, period, and client first.');
+        return;
+    }
+    await loadDownloads(csm, month, clientId);
+}
 
 // ─── RESULTS VIEWER ───
 

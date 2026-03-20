@@ -327,13 +327,25 @@ async def stream_run(run_id: str):
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
+def _resolve_csm_dir(base_path: Path, csm: str) -> Path:
+    """Fuzzy match CSM folder name."""
+    direct = base_path / csm
+    if direct.exists():
+        return direct
+    if base_path.exists():
+        for d in base_path.iterdir():
+            if d.is_dir() and d.name.lower().startswith(csm.lower()):
+                return d
+    return direct
+
+
 @app.get("/api/outputs/{csm}/{month}/{client_id}")
 async def list_outputs(csm: str, month: str, client_id: str):
     """List output files for a completed run."""
     files = []
 
-    # Check completed analysis
-    analysis_dir = COMPLETED_ANALYSIS / csm / month / client_id
+    # Check completed analysis (fuzzy CSM match)
+    analysis_dir = _resolve_csm_dir(COMPLETED_ANALYSIS, csm) / month / client_id
     if analysis_dir.exists():
         for f in analysis_dir.iterdir():
             if f.is_file() and f.suffix in (".xlsx", ".json", ".png"):
@@ -345,8 +357,8 @@ async def list_outputs(csm: str, month: str, client_id: str):
                     "category": "analysis",
                 })
 
-    # Check presentations
-    pptx_dir = PRESENTATIONS_BASE / csm / month / client_id
+    # Check presentations (fuzzy CSM match)
+    pptx_dir = _resolve_csm_dir(PRESENTATIONS_BASE, csm) / month / client_id
     if pptx_dir.exists():
         for f in pptx_dir.iterdir():
             if f.is_file() and f.suffix == ".pptx":
