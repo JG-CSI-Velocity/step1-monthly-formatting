@@ -100,10 +100,10 @@ def _render_dctr_narrative(
         )
     insight = "  ".join(insight_parts)
 
-    style_path = str(Path(__file__).parent.parent.parent / "charts" / "ars.mplstyle")
+    from charts.guards import _STYLE_DICT
     fig = None
     try:
-        with plt.style.context(style_path):
+        with plt.style.context(_STYLE_DICT or 'default'):
             fig = plt.figure(figsize=(18, 9), dpi=150)
             gs = fig.add_gridspec(
                 1,

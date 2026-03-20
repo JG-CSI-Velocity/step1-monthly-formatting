@@ -220,13 +220,13 @@ def _render_combined(
     from pathlib import Path
 
     has_product = not prod_summary.empty
-    style_path = str(Path(__file__).parent.parent.parent / "charts" / "ars.mplstyle")
+    from charts.guards import _STYLE_DICT
 
     fig_w = 18
     fig_h = 10
     fig = None
     try:
-        with plt.style.context(style_path):
+        with plt.style.context(_STYLE_DICT or 'default'):
             fig = plt.figure(figsize=(fig_w, fig_h), dpi=150)
 
             if has_product:
