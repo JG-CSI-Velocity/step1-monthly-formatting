@@ -13,9 +13,7 @@ Usage:
 import argparse
 import os
 import re
-import shutil
 import sys
-import tempfile
 import zipfile
 from datetime import datetime
 from pathlib import Path
@@ -149,41 +147,14 @@ def process_csm(csm_name, src_directory, staging_directory, output_directory, lo
             # Run the canonical 7-step formatting
             df = format_odd(df)
 
-            # Save formatted Excel: write to local temp first, then copy to network
-            # This prevents corrupted files from interrupted network writes
+            # Save formatted Excel directly to output
             excel_filename = os.path.splitext(csv_file)[0] + '.xlsx'
             client_output_dir = os.path.join(output_directory, client_id)
             os.makedirs(client_output_dir, exist_ok=True)
             output_path = os.path.join(client_output_dir, excel_filename)
 
-            with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as tmp:
-                tmp_path = tmp.name
+            df.to_excel(output_path, index=False, engine='openpyxl')
 
-            df.to_excel(tmp_path, index=False, engine='openpyxl')
-
-            # Verify the temp file is valid before moving
-            tmp_size = os.path.getsize(tmp_path)
-            if tmp_size < 1000:
-                os.remove(tmp_path)
-                log_message(f"    ERROR: Output file too small ({tmp_size} bytes) -- likely corrupted", log_file)
-                error_count += 1
-                continue
-
-            # Verify it's a valid Excel file
-            try:
-                with zipfile.ZipFile(tmp_path, 'r') as zf:
-                    zf.testzip()
-            except (zipfile.BadZipFile, Exception) as ve:
-                os.remove(tmp_path)
-                log_message(f"    ERROR: Output file failed validation: {ve}", log_file)
-                error_count += 1
-                continue
-
-            # Copy verified file to network destination
-            shutil.copy2(tmp_path, output_path)
-            os.remove(tmp_path)
-
-            # Final size check
             final_size = os.path.getsize(output_path) / (1024 * 1024)
             log_message(f"    Done: {excel_filename} ({final_size:.1f} MB) -> {client_output_dir}", log_file)
             success_count += 1
