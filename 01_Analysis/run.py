@@ -168,8 +168,9 @@ def main():
     if not config_path:
         # Try known locations
         candidates = [
+            Path(r"M:\ARS\03_Config\clients_config.json"),
             Path(r"M:\ARS\Config\clients_config.json"),
-            Path(r"M:/ARS/Config/clients_config.json"),
+            Path(__file__).parent.parent / "03_Config" / "clients_config.json",
             Path(__file__).parent.parent / "Config" / "clients_config.json",
             Path(__file__).parent.parent / "00_Formatting" / "configs" / "clients_config.json",
         ]
