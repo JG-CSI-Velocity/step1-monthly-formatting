@@ -1,22 +1,22 @@
-"""Step 2: Run ARS analysis on a formatted ODD file and generate PowerPoint.
+r"""Step 2: Run ARS analysis on a formatted ODD file and generate PowerPoint.
 
 Usage:
-    python run.py <odd_file>
-    python run.py <odd_file> --client-id 1200 --client-name "Guardians CU"
-    python run.py <odd_file> --output-dir M:\ARS\Presentations
+    python run.py --month 2026.03 --csm JamesG --client 1200
+    python run.py "path\to\formatted-ODD.xlsx"
+    python run.py "path\to\ODD.xlsx" --output-dir M:\ARS\01_Analysis\01_Completed_Analysis
 
-The ODD file should be the formatted Excel from Step 1
-(e.g., 02-Data-Ready for Analysis/JamesG/2026.03/1200/1200-ODD.xlsx)
+Auto-finds the formatted ODD in 00_Formatting\02-Data-Ready for Analysis
+when --month, --csm, and --client are provided.
 """
 
 import argparse
+import glob
 import json
 import os
 import sys
 from datetime import datetime
 from pathlib import Path
 
-# Add step2-analysis to path so ars_analysis imports resolve locally
 # Add 00-Scripts to path so imports work
 _scripts_dir = Path(__file__).parent / "00-Scripts"
 sys.path.insert(0, str(_scripts_dir))
@@ -32,12 +32,34 @@ _ars_pkg.__package__ = "ars_analysis"
 sys.modules["ars_analysis"] = _ars_pkg
 
 
+def _find_odd_file(csm, month, client_id):
+    """Auto-find the formatted ODD file from the standard path structure."""
+    if os.name == "nt":
+        base = Path(r"M:\ARS\00_Formatting\02-Data-Ready for Analysis")
+    else:
+        base = Path("/Volumes/M/ARS/00_Formatting/02-Data-Ready for Analysis")
+
+    client_dir = base / csm / month / client_id
+    if not client_dir.exists():
+        return None
+
+    # Find Excel files in the client folder
+    xlsx_files = list(client_dir.glob("*.xlsx"))
+    if xlsx_files:
+        return xlsx_files[0]
+    return None
+
+
 def main():
     parser = argparse.ArgumentParser(description="Step 2: Run ARS Analysis + Generate PPTX")
-    parser.add_argument("odd_file", type=str,
-                        help="Path to formatted ODD Excel file")
-    parser.add_argument("--client-id", type=str, default=None,
-                        help="Client ID (auto-detected from filename if not provided)")
+    parser.add_argument("odd_file", type=str, nargs="?", default=None,
+                        help="Path to formatted ODD Excel file (or use --month/--csm/--client)")
+    parser.add_argument("--month", type=str, default=None,
+                        help="Month in YYYY.MM format (used with --csm and --client)")
+    parser.add_argument("--csm", type=str, default=None,
+                        help="CSM name (used with --month and --client)")
+    parser.add_argument("--client", type=str, default=None,
+                        help="Client ID (used with --month and --csm)")
     parser.add_argument("--client-name", type=str, default=None,
                         help="Client name (auto-detected from filename if not provided)")
     parser.add_argument("--output-dir", type=str, default=None,
@@ -50,14 +72,34 @@ def main():
                         help="Skip PowerPoint generation (Excel only)")
     args = parser.parse_args()
 
-    odd_path = Path(args.odd_file)
+    # Resolve the ODD file path
+    if args.odd_file:
+        odd_path = Path(args.odd_file)
+    elif args.month and args.csm and args.client:
+        # Auto-find from standard path structure
+        odd_path_found = _find_odd_file(args.csm, args.month, args.client)
+        if odd_path_found:
+            odd_path = odd_path_found
+            print(f"  Found: {odd_path}")
+        else:
+            print(f"  ERROR: No formatted ODD file found for {args.csm}/{args.month}/{args.client}")
+            if os.name == "nt":
+                print(f"  Looked in: M:\\ARS\\00_Formatting\\02-Data-Ready for Analysis\\{args.csm}\\{args.month}\\{args.client}\\")
+            sys.exit(1)
+    else:
+        print("  ERROR: Provide either a file path or --month --csm --client")
+        print("  Examples:")
+        print('    python run.py --month 2026.03 --csm JamesG --client 1200')
+        print('    python run.py "path\\to\\formatted-ODD.xlsx"')
+        sys.exit(1)
+
     if not odd_path.exists():
         print(f"  ERROR: File not found: {odd_path}")
         sys.exit(1)
 
     # Auto-detect client ID and name from filename
     # Expected: 1200-2026-03-Guardians Credit Union-ODD.xlsx
-    client_id = args.client_id
+    client_id = args.client
     client_name = args.client_name
 
     if not client_id:
@@ -75,23 +117,24 @@ def main():
     if not client_name:
         client_name = f"Client {client_id}"
 
-    # Derive CSM and month from the input path
-    # Expected: .../02-Data-Ready for Analysis/CSM/YYYY.MM/ClientID/filename.xlsx
-    csm_name = ""
-    month = ""
-    try:
-        # Walk up: parent=ClientID, grandparent=month, great-grandparent=CSM
-        client_dir = odd_path.parent
-        month_dir = client_dir.parent
-        csm_dir = month_dir.parent
+    # Derive CSM and month -- prefer args, fall back to path parsing
+    csm_name = args.csm or ""
+    month = args.month or ""
 
-        if client_dir.name.isdigit():
-            client_id = client_id or client_dir.name
-        if "." in month_dir.name and month_dir.name[:4].isdigit():
-            month = month_dir.name
-        csm_name = csm_dir.name if csm_dir.name not in ("02-Data-Ready for Analysis",) else ""
-    except Exception:
-        pass
+    if not csm_name or not month:
+        try:
+            client_dir = odd_path.parent
+            month_dir = client_dir.parent
+            csm_dir = month_dir.parent
+
+            if not client_id and client_dir.name.isdigit():
+                client_id = client_dir.name
+            if not month and "." in month_dir.name and month_dir.name[:4].isdigit():
+                month = month_dir.name
+            if not csm_name:
+                csm_name = csm_dir.name if csm_dir.name not in ("02-Data-Ready for Analysis",) else ""
+        except Exception:
+            pass
 
     if not month:
         month = datetime.now().strftime("%Y.%m")
