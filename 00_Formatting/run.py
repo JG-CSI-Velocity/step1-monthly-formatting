@@ -153,7 +153,7 @@ def process_csm(csm_name, src_directory, staging_directory, output_directory, lo
             os.makedirs(client_output_dir, exist_ok=True)
             output_path = os.path.join(client_output_dir, excel_filename)
 
-            df.to_excel(output_path, index=False, engine='openpyxl')
+            df.to_excel(output_path, index=False, engine='xlsxwriter')
 
             final_size = os.path.getsize(output_path) / (1024 * 1024)
             log_message(f"    Done: {excel_filename} ({final_size:.1f} MB) -> {client_output_dir}", log_file)

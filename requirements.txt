@@ -3,6 +3,7 @@ rich
 pydantic
 pydantic-settings
 openpyxl
+xlsxwriter
 python-pptx
 matplotlib
 numpy
