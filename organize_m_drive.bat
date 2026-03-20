@@ -46,10 +46,19 @@ if exist "M:\ARS\Output" (
 if not exist "M:\ARS\00_Formatting\00-Scripts" mkdir "M:\ARS\00_Formatting\00-Scripts"
 if not exist "M:\ARS\00_Formatting\01-Data-Ready for Formatting" mkdir "M:\ARS\00_Formatting\01-Data-Ready for Formatting"
 if not exist "M:\ARS\00_Formatting\02-Data-Ready for Analysis" mkdir "M:\ARS\00_Formatting\02-Data-Ready for Analysis"
+if not exist "M:\ARS\01_Analysis\00-Scripts" mkdir "M:\ARS\01_Analysis\00-Scripts"
 if not exist "M:\ARS\01_Analysis\02_Completed_Analysis" mkdir "M:\ARS\01_Analysis\02_Completed_Analysis"
 if not exist "M:\ARS\Config" mkdir "M:\ARS\Config"
 if not exist "M:\ARS\Logs" mkdir "M:\ARS\Logs"
 if not exist "M:\ARS\Presentations" mkdir "M:\ARS\Presentations"
+
+:: Create CSM subfolders in each data directory
+for %%C in (JamesG Jordan Aaron Gregg Dan Max) do (
+    if not exist "M:\ARS\00_Formatting\01-Data-Ready for Formatting\%%C" mkdir "M:\ARS\00_Formatting\01-Data-Ready for Formatting\%%C"
+    if not exist "M:\ARS\00_Formatting\02-Data-Ready for Analysis\%%C" mkdir "M:\ARS\00_Formatting\02-Data-Ready for Analysis\%%C"
+    if not exist "M:\ARS\01_Analysis\02_Completed_Analysis\%%C" mkdir "M:\ARS\01_Analysis\02_Completed_Analysis\%%C"
+    echo   Created folders for %%C
+)
 
 echo.
 echo ======================================================================
