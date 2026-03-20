@@ -100,7 +100,7 @@ def main():
     if args.output_dir:
         output_dir = Path(args.output_dir)
     else:
-        analysis_base = Path(r"M:\ARS\01_Analysis") if os.name == "nt" else Path("/Volumes/M/ARS/01_Analysis")
+        analysis_base = Path(r"M:\ARS\01_Analysis\02_Completed_Analysis") if os.name == "nt" else Path("/Volumes/M/ARS/01_Analysis/02_Completed_Analysis")
         if csm_name:
             output_dir = analysis_base / csm_name / month / client_id
         else:
