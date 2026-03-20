@@ -56,8 +56,8 @@ if not exist "M:\ARS\00_Formatting\02-Data-Ready for Analysis" mkdir "M:\ARS\00_
 if not exist "M:\ARS\01_Analysis\00-Scripts" mkdir "M:\ARS\01_Analysis\00-Scripts"
 if not exist "M:\ARS\01_Analysis\01_Completed_Analysis" mkdir "M:\ARS\01_Analysis\01_Completed_Analysis"
 if not exist "M:\ARS\02_Presentations" mkdir "M:\ARS\02_Presentations"
-if not exist "M:\ARS\Config" mkdir "M:\ARS\Config"
-if not exist "M:\ARS\Logs" mkdir "M:\ARS\Logs"
+if not exist "M:\ARS\03_Config" mkdir "M:\ARS\03_Config"
+if not exist "M:\ARS\04_Logs" mkdir "M:\ARS\04_Logs"
 
 :: Create CSM subfolders in each data directory
 for %%C in (JamesG Jordan Aaron Gregg Dan Max) do (

@@ -65,15 +65,15 @@ def _resolve_template_path() -> Path | None:
 
     candidates = (
         [
+            Path(r"M:\ARS\02_Presentations\2025-CSI-PPT-Template.pptx"),
+            Path(r"M:\ARS\02_Presentations\Template12.25.pptx"),
+            Path(r"M:\ARS\02_Presentations\Template 12.25.pptx"),
             Path(r"M:\ARS\Presentations\2025-CSI-PPT-Template.pptx"),
-            Path(r"M:\ARS\Presentations\Template12.25.pptx"),
-            Path(r"M:\ARS\Presentations\Template 12.25.pptx"),
         ]
         if _platform.system() == "Windows"
         else [
+            Path("/Volumes/M/ARS/02_Presentations/2025-CSI-PPT-Template.pptx"),
             Path("/Volumes/M/ARS/Presentations/2025-CSI-PPT-Template.pptx"),
-            Path("/Volumes/M/ARS/Presentations/Template12.25.pptx"),
-            Path("/Volumes/M/ARS/Presentations/Template 12.25.pptx"),
         ]
     )
     for p in candidates:
@@ -99,15 +99,14 @@ def _resolve_config_fallback() -> str | None:
 
     _fallback_paths = (
         [
+            Path(r"M:\ARS\03_Config\clients_config.json"),
             Path(r"M:\ARS\Config\clients_config.json"),
             Path(r"M:\ICS\Config\clients_config.json"),
-            Path(r"M:\Config\clients_config.json"),
         ]
         if _platform.system() == "Windows"
         else [
+            Path("/Volumes/M/ARS/03_Config/clients_config.json"),
             Path("/Volumes/M/ARS/Config/clients_config.json"),
-            Path("/Volumes/M/ICS/Config/clients_config.json"),
-            Path("/Volumes/M/Config/clients_config.json"),
         ]
     )
     for p in _fallback_paths:
