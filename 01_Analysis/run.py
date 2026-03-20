@@ -156,7 +156,7 @@ def main():
         # Try known locations
         for candidate in [
             Path(r"M:\ARS\Config\clients_config.json"),
-            _step2_dir.parent / "step1-formatting" / "configs" / "clients_config.json",
+            Path(__file__).parent.parent / "00_Formatting" / "configs" / "clients_config.json",
         ]:
             if candidate.exists():
                 config_path = str(candidate)
