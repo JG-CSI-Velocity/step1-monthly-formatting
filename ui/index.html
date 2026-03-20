@@ -217,6 +217,57 @@ header {
 .result-title { font-size: 13px; font-weight: 600; line-height: 1.3; }
 .result-module { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--accent); margin-top: 4px; }
 
+/* ─── RESULTS VIEWER ─── */
+.rsec-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px; cursor: pointer; transition: all 0.15s;
+    border-left: 3px solid transparent; font-size: 13px; color: var(--dark-muted);
+}
+.rsec-item:hover { background: rgba(0,0,0,0.03); color: var(--text); }
+.rsec-item.active { border-left-color: var(--accent); color: var(--text); font-weight: 600; background: rgba(198,122,60,0.06); }
+.rsec-count { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--accent); margin-left: auto; }
+.rsec-divider { height: 1px; background: var(--border); margin: 8px 16px; }
+
+.rthumb {
+    width: 100px; height: 60px; border: 2px solid var(--border); border-radius: 6px;
+    overflow: hidden; cursor: pointer; flex-shrink: 0; transition: border-color 0.15s;
+    background: #faf7f4; display: flex; align-items: center; justify-content: center;
+}
+.rthumb:hover { border-color: var(--accent); }
+.rthumb.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-light); }
+.rthumb img { width: 100%; height: 100%; object-fit: cover; }
+.rthumb-label { font-size: 8px; color: var(--muted); text-align: center; padding: 2px; }
+
+/* Lightbox */
+.lightbox {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.85); z-index: 1000; display: none;
+    align-items: center; justify-content: center; cursor: pointer;
+}
+.lightbox.open { display: flex; }
+.lightbox img { max-width: 90vw; max-height: 90vh; border-radius: 8px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+.lightbox-close {
+    position: absolute; top: 24px; right: 32px;
+    font-size: 28px; color: #fff; cursor: pointer; opacity: 0.7;
+}
+.lightbox-close:hover { opacity: 1; }
+.lightbox-nav {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    font-size: 36px; color: #fff; cursor: pointer; opacity: 0.5;
+    padding: 16px; user-select: none;
+}
+.lightbox-nav:hover { opacity: 1; }
+.lightbox-prev { left: 16px; }
+.lightbox-next { right: 16px; }
+.lightbox-info {
+    position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,0.6); color: #fff; padding: 12px 24px;
+    border-radius: 8px; text-align: center; max-width: 600px;
+    font-family: 'Outfit', sans-serif;
+}
+.lightbox-info-title { font-size: 15px; font-weight: 600; }
+.lightbox-info-module { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--accent); margin-top: 4px; }
+
 /* ─── FOOTER ─── */
 footer { text-align: center; padding: 28px; font-size: 11px; color: var(--faint); border-top: 1px solid var(--border); margin-top: 40px; }
 </style>
@@ -401,25 +452,64 @@ footer { text-align: center; padding: 28px; font-size: 11px; color: var(--faint)
 
 <!-- ═══════════════ RESULTS ═══════════════ -->
 <div class="page" id="page-results">
-    <div class="page-title">Results Gallery</div>
-    <div class="page-sub">Browse charts and slides from the most recent analysis run.</div>
-
-    <div class="config-row" style="margin-bottom:24px;">
-        <div class="config-field"><div class="label">Client</div>
-            <select class="sel"><option>1200 — Guardians Credit Union (Mar 26)</option><option>1217 — Pioneer FCU (Mar 26)</option></select>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:24px;">
+        <div>
+            <div class="page-title">Results Gallery</div>
+            <div class="page-sub">Browse slides from completed analysis runs. Use arrow keys or click to navigate.</div>
         </div>
-        <div class="config-field"><div class="label">Section</div>
-            <select class="sel"><option>All Sections</option><option>Overview</option><option>DCTR</option><option>Reg E</option><option>Attrition</option><option>Mailer Campaign</option><option>Insights</option></select>
+        <div style="display:flex;gap:12px;align-items:center;">
+            <select class="sel" id="rClientSel" onchange="loadResults()" style="width:280px;">
+                <option value="">Select a client...</option>
+            </select>
         </div>
     </div>
 
-    <div class="results-grid">
-        <div class="result-card"><div class="result-img"><canvas id="rc1" width="340" height="170"></canvas></div><div class="result-info"><div class="result-title">62% of eligible accounts actively use their debit card</div><div class="result-module">dctr.penetration</div></div></div>
-        <div class="result-card"><div class="result-img"><canvas id="rc2" width="340" height="170"></canvas></div><div class="result-info"><div class="result-title">Card usage increased 8% over the past 12 months</div><div class="result-module">dctr.trends</div></div></div>
-        <div class="result-card"><div class="result-img"><canvas id="rc3" width="340" height="170"></canvas></div><div class="result-info"><div class="result-title">Main Office leads with 71% penetration</div><div class="result-module">dctr.branches</div></div></div>
-        <div class="result-card"><div class="result-img"><canvas id="rc4" width="340" height="170"></canvas></div><div class="result-info"><div class="result-title">TH-15 achieved the highest response rate at 18%</div><div class="result-module">mailer.response</div></div></div>
-        <div class="result-card"><div class="result-img"><canvas id="rc5" width="340" height="170"></canvas></div><div class="result-info"><div class="result-title">Responders increased spend by $47/mo — a 12% lift</div><div class="result-module">mailer.impact</div></div></div>
-        <div class="result-card"><div class="result-img"><canvas id="rc6" width="340" height="170"></canvas></div><div class="result-info"><div class="result-title">3,200 accounts closed — 5.2% annualized attrition</div><div class="result-module">attrition.rates</div></div></div>
+    <div id="resultsViewer" style="display:none;">
+        <div style="display:grid;grid-template-columns:240px 1fr;gap:0;background:var(--card);border:2px solid var(--border);border-radius:12px;overflow:hidden;min-height:600px;">
+
+            <!-- Section nav (left) -->
+            <div id="resultsSidebar" style="background:#faf7f4;border-right:1px solid var(--border);padding:16px 0;overflow-y:auto;max-height:700px;">
+                <div style="padding:0 16px 12px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:2px;">Sections</div>
+                <div id="resultsSections"></div>
+            </div>
+
+            <!-- Main slide view (center) -->
+            <div style="padding:24px;display:flex;flex-direction:column;">
+                <!-- Slide header -->
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                    <div>
+                        <div id="rSlideTitle" style="font-family:'Instrument Serif',serif;font-size:22px;font-style:italic;line-height:1.3;">Select a slide</div>
+                        <div id="rSlideModule" style="font-family:'Space Mono',monospace;font-size:11px;color:var(--accent);margin-top:4px;"></div>
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <span id="rSlideCounter" style="font-family:'Space Mono',monospace;font-size:12px;color:var(--muted);"></span>
+                        <button onclick="prevSlide()" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 14px;cursor:pointer;font-size:16px;">&larr;</button>
+                        <button onclick="nextSlide()" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 14px;cursor:pointer;font-size:16px;">&rarr;</button>
+                    </div>
+                </div>
+
+                <!-- Slide image -->
+                <div id="rSlideContainer" style="flex:1;background:#faf7f4;border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;min-height:450px;position:relative;overflow:hidden;cursor:pointer;" onclick="nextSlide()">
+                    <div id="rSlideEmpty" style="text-align:center;color:var(--muted);padding:48px;">
+                        <div style="font-size:48px;margin-bottom:16px;opacity:0.3;">&#9654;</div>
+                        <div style="font-size:16px;">Select a client above to view their analysis slides.</div>
+                        <div style="font-size:13px;margin-top:8px;">Charts will load from the most recent completed run.</div>
+                    </div>
+                    <img id="rSlideImg" style="max-width:100%;max-height:100%;object-fit:contain;display:none;" />
+                    <canvas id="rSlideCanvas" style="display:none;max-width:100%;"></canvas>
+                </div>
+
+                <!-- Slide strip (thumbnails) -->
+                <div id="rSlideStrip" style="display:flex;gap:8px;margin-top:16px;overflow-x:auto;padding:8px 0;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Empty state when no client selected -->
+    <div id="resultsEmpty" class="card" style="text-align:center;padding:64px 48px;">
+        <div style="font-size:48px;margin-bottom:16px;opacity:0.15;">&#128202;</div>
+        <div style="font-family:'Instrument Serif',serif;font-size:24px;font-style:italic;margin-bottom:8px;">No Results to Display</div>
+        <div style="color:var(--muted);font-size:14px;max-width:400px;margin:0 auto;">Select a client above to browse their analysis results. Charts and slides from the most recent run will appear here.</div>
     </div>
 </div>
 
@@ -435,6 +525,18 @@ footer { text-align: center; padding: 28px; font-size: 11px; color: var(--faint)
                 <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:24px;">Run history will appear here after reports are generated.</td></tr>
             </tbody>
         </table>
+    </div>
+</div>
+
+<!-- Lightbox overlay -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox(event)">
+    <div class="lightbox-close" onclick="closeLightbox()">&times;</div>
+    <div class="lightbox-nav lightbox-prev" onclick="event.stopPropagation();prevSlide();">&larr;</div>
+    <div class="lightbox-nav lightbox-next" onclick="event.stopPropagation();nextSlide();">&rarr;</div>
+    <img id="lightboxImg" />
+    <div class="lightbox-info">
+        <div class="lightbox-info-title" id="lightboxTitle"></div>
+        <div class="lightbox-info-module" id="lightboxModule"></div>
     </div>
 </div>
 
@@ -614,6 +716,17 @@ async function loadClients() {
             sel.appendChild(opt);
         });
         updateGenClientFromAPI();
+        // Also populate results client selector
+        const rSel = document.getElementById('rClientSel');
+        if (rSel) {
+            rSel.innerHTML = '<option value="">Select a client...</option>';
+            data.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = `${c.id} — ${c.name}`;
+                rSel.appendChild(opt);
+            });
+        }
     } catch(e) {
         console.log('API not available, using defaults');
     }
@@ -741,6 +854,217 @@ async function runGenReal() {
         }
     };
 }
+
+// ─── RESULTS VIEWER ───
+
+// Demo slide data (replaced by API when connected)
+const demoSlides = [
+    { section: 'Overview', module: 'overview.stat_codes', title: 'Account status breakdown shows strong portfolio health', hasChart: true },
+    { section: 'Overview', module: 'overview.product_codes', title: 'Product distribution across eligible accounts', hasChart: true },
+    { section: 'Overview', module: 'overview.eligibility', title: 'Eligibility funnel from total to active accounts', hasChart: true },
+    { section: 'DCTR', module: 'dctr.penetration', title: 'Debit card penetration across eligible accounts', hasChart: true },
+    { section: 'DCTR', module: 'dctr.trends', title: 'Monthly card usage trends over the past 12 months', hasChart: true },
+    { section: 'DCTR', module: 'dctr.branches', title: 'Branch-level penetration comparison', hasChart: true },
+    { section: 'DCTR', module: 'dctr.funnel', title: 'Enrollment to activation conversion funnel', hasChart: true },
+    { section: 'DCTR', module: 'dctr.overlays', title: 'PIN vs signature transaction overlays', hasChart: true },
+    { section: 'Reg E', module: 'rege.status', title: 'Reg E opt-in status distribution', hasChart: true },
+    { section: 'Reg E', module: 'rege.branches', title: 'Reg E opt-in rates by branch', hasChart: true },
+    { section: 'Reg E', module: 'rege.dimensions', title: 'Reg E patterns by account age and product', hasChart: true },
+    { section: 'Attrition', module: 'attrition.rates', title: 'Account closure rates and monthly trend', hasChart: true },
+    { section: 'Attrition', module: 'attrition.dimensions', title: 'Who is closing accounts — by demographics', hasChart: true },
+    { section: 'Attrition', module: 'attrition.impact', title: 'Revenue impact of closed accounts', hasChart: true },
+    { section: 'Mailer', module: 'mailer.insights', title: 'Campaign overview — mailed, responded, rates', hasChart: true },
+    { section: 'Mailer', module: 'mailer.response', title: 'Response rates by challenge segment per wave', hasChart: true },
+    { section: 'Mailer', module: 'mailer.impact', title: 'Spend and swipe lift from campaign responders', hasChart: true },
+    { section: 'Mailer', module: 'mailer.cohort', title: 'Before vs after analysis by mail wave cohort', hasChart: true },
+    { section: 'Mailer', module: 'mailer.reach', title: 'Cumulative program penetration across waves', hasChart: true },
+    { section: 'Value', module: 'value.analysis', title: 'Interchange revenue attribution from program', hasChart: true },
+    { section: 'Insights', module: 'insights.synthesis', title: 'Key findings across all analysis modules', hasChart: false },
+    { section: 'Insights', module: 'insights.conclusions', title: 'Recommended actions and priorities', hasChart: false },
+];
+
+let currentSlides = [];
+let currentSlideIdx = 0;
+let currentResultSection = 'all';
+
+function loadResults() {
+    const sel = document.getElementById('rClientSel');
+    if (!sel.value) {
+        document.getElementById('resultsViewer').style.display = 'none';
+        document.getElementById('resultsEmpty').style.display = 'block';
+        return;
+    }
+    document.getElementById('resultsViewer').style.display = 'block';
+    document.getElementById('resultsEmpty').style.display = 'none';
+
+    // Try to load real charts from API, fall back to demo
+    currentSlides = demoSlides;
+    currentSlideIdx = 0;
+    currentResultSection = 'all';
+    renderResultsSidebar();
+    showSlide(0);
+
+    // Try API
+    tryLoadRealResults(sel.value);
+}
+
+async function tryLoadRealResults(clientId) {
+    try {
+        const csm = document.getElementById('gCsmSel')?.value || 'JamesG';
+        const month = document.getElementById('gMonthSel')?.value || '2026.03';
+        const resp = await fetch(`/api/outputs/${csm}/${month}/${clientId}`);
+        if (!resp.ok) return;
+        const files = await resp.json();
+        const charts = files.filter(f => f.type === 'png' && f.category === 'chart');
+        if (charts.length > 0) {
+            currentSlides = charts.map(c => ({
+                section: c.name.split('_')[0] || 'Analysis',
+                module: c.name.replace('.png', ''),
+                title: c.name.replace('.png', '').replace(/_/g, ' '),
+                hasChart: true,
+                imgUrl: `/api/download?path=${encodeURIComponent(c.path)}`,
+            }));
+            renderResultsSidebar();
+            showSlide(0);
+        }
+    } catch(e) {}
+}
+
+function renderResultsSidebar() {
+    const sidebar = document.getElementById('resultsSections');
+    const sections = {};
+    currentSlides.forEach((s, i) => {
+        if (!sections[s.section]) sections[s.section] = [];
+        sections[s.section].push(i);
+    });
+
+    let html = '';
+    html += `<div class="rsec-item ${currentResultSection === 'all' ? 'active' : ''}" onclick="filterSection('all')">All Slides<span class="rsec-count">${currentSlides.length}</span></div>`;
+    html += '<div class="rsec-divider"></div>';
+
+    for (const [name, indices] of Object.entries(sections)) {
+        html += `<div class="rsec-item ${currentResultSection === name ? 'active' : ''}" onclick="filterSection('${name}')">${name}<span class="rsec-count">${indices.length}</span></div>`;
+    }
+
+    sidebar.innerHTML = html;
+}
+
+function filterSection(section) {
+    currentResultSection = section;
+    renderResultsSidebar();
+
+    // Find first slide in this section
+    if (section === 'all') {
+        showSlide(0);
+    } else {
+        const idx = currentSlides.findIndex(s => s.section === section);
+        if (idx >= 0) showSlide(idx);
+    }
+    renderThumbnails();
+}
+
+function getFilteredSlides() {
+    if (currentResultSection === 'all') return currentSlides.map((s, i) => ({ ...s, idx: i }));
+    return currentSlides.map((s, i) => ({ ...s, idx: i })).filter(s => s.section === currentResultSection);
+}
+
+function showSlide(idx) {
+    if (idx < 0 || idx >= currentSlides.length) return;
+    currentSlideIdx = idx;
+    const slide = currentSlides[idx];
+
+    document.getElementById('rSlideTitle').textContent = slide.title;
+    document.getElementById('rSlideModule').textContent = slide.module;
+    document.getElementById('rSlideCounter').textContent = `${idx + 1} / ${currentSlides.length}`;
+
+    const img = document.getElementById('rSlideImg');
+    const empty = document.getElementById('rSlideEmpty');
+
+    if (slide.imgUrl) {
+        img.src = slide.imgUrl;
+        img.style.display = 'block';
+        empty.style.display = 'none';
+    } else {
+        img.style.display = 'none';
+        empty.style.display = 'block';
+        empty.innerHTML = `
+            <div style="font-size:20px;margin-bottom:12px;color:var(--accent);font-weight:600;">${slide.module}</div>
+            <div style="font-family:'Instrument Serif',serif;font-size:24px;font-style:italic;line-height:1.4;">${slide.title}</div>
+            <div style="font-size:13px;color:var(--muted);margin-top:16px;">Chart will appear here when the analysis pipeline has been run for this client.</div>
+        `;
+    }
+
+    renderThumbnails();
+
+    // Update lightbox
+    document.getElementById('lightboxTitle').textContent = slide.title;
+    document.getElementById('lightboxModule').textContent = slide.module;
+    if (slide.imgUrl) {
+        document.getElementById('lightboxImg').src = slide.imgUrl;
+    }
+}
+
+function renderThumbnails() {
+    const strip = document.getElementById('rSlideStrip');
+    const filtered = getFilteredSlides();
+    strip.innerHTML = '';
+
+    filtered.forEach(slide => {
+        const thumb = document.createElement('div');
+        thumb.className = `rthumb ${slide.idx === currentSlideIdx ? 'active' : ''}`;
+        thumb.onclick = () => showSlide(slide.idx);
+
+        if (slide.imgUrl) {
+            thumb.innerHTML = `<img src="${slide.imgUrl}" />`;
+        } else {
+            thumb.innerHTML = `<div class="rthumb-label" style="font-size:9px;padding:4px;">${slide.module.split('.').pop()}</div>`;
+        }
+
+        strip.appendChild(thumb);
+    });
+}
+
+function nextSlide() {
+    const filtered = getFilteredSlides();
+    const curPos = filtered.findIndex(s => s.idx === currentSlideIdx);
+    if (curPos < filtered.length - 1) {
+        showSlide(filtered[curPos + 1].idx);
+    }
+}
+
+function prevSlide() {
+    const filtered = getFilteredSlides();
+    const curPos = filtered.findIndex(s => s.idx === currentSlideIdx);
+    if (curPos > 0) {
+        showSlide(filtered[curPos - 1].idx);
+    }
+}
+
+function openLightbox() {
+    const slide = currentSlides[currentSlideIdx];
+    if (!slide || !slide.imgUrl) return;
+    document.getElementById('lightbox').classList.add('open');
+}
+
+function closeLightbox(event) {
+    if (event && event.target !== document.getElementById('lightbox') && event.target !== document.querySelector('.lightbox-close')) return;
+    document.getElementById('lightbox').classList.remove('open');
+}
+
+// Keyboard navigation
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); nextSlide(); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); prevSlide(); }
+    if (e.key === 'Escape') closeLightbox();
+    if (e.key === 'f' || e.key === 'F') {
+        const lb = document.getElementById('lightbox');
+        if (lb.classList.contains('open')) closeLightbox();
+        else openLightbox();
+    }
+});
+
+// Double-click slide to go fullscreen
+document.getElementById('rSlideContainer')?.addEventListener('dblclick', openLightbox);
 
 // Load real data on page load
 loadCSMs();
