@@ -75,8 +75,36 @@ def main():
     if not client_name:
         client_name = f"Client {client_id}"
 
-    # Output directory
-    output_dir = Path(args.output_dir) if args.output_dir else odd_path.parent
+    # Derive CSM and month from the input path
+    # Expected: .../02-Data-Ready for Analysis/CSM/YYYY.MM/ClientID/filename.xlsx
+    csm_name = ""
+    month = ""
+    try:
+        # Walk up: parent=ClientID, grandparent=month, great-grandparent=CSM
+        client_dir = odd_path.parent
+        month_dir = client_dir.parent
+        csm_dir = month_dir.parent
+
+        if client_dir.name.isdigit():
+            client_id = client_id or client_dir.name
+        if "." in month_dir.name and month_dir.name[:4].isdigit():
+            month = month_dir.name
+        csm_name = csm_dir.name if csm_dir.name not in ("02-Data-Ready for Analysis",) else ""
+    except Exception:
+        pass
+
+    if not month:
+        month = datetime.now().strftime("%Y.%m")
+
+    # Output directory: M:\ARS\01_Analysis\CSM\YYYY.MM\ClientID\
+    if args.output_dir:
+        output_dir = Path(args.output_dir)
+    else:
+        analysis_base = Path(r"M:\ARS\01_Analysis") if os.name == "nt" else Path("/Volumes/M/ARS/01_Analysis")
+        if csm_name:
+            output_dir = analysis_base / csm_name / month / client_id
+        else:
+            output_dir = analysis_base / month / client_id
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Config file
@@ -96,6 +124,8 @@ def main():
     print("  STEP 2: ARS ANALYSIS + POWERPOINT GENERATION")
     print("=" * 70)
     print(f"  Client:    {client_id} - {client_name}")
+    print(f"  CSM:       {csm_name or 'unknown'}")
+    print(f"  Month:     {month}")
     print(f"  ODD File:  {odd_path}")
     print(f"  Output:    {output_dir}")
     print(f"  Config:    {config_path or 'None (using defaults)'}")
