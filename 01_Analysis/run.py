@@ -167,13 +167,28 @@ def main():
     config_path = args.config
     if not config_path:
         # Try known locations
-        for candidate in [
+        candidates = [
             Path(r"M:\ARS\Config\clients_config.json"),
+            Path(r"M:/ARS/Config/clients_config.json"),
+            Path(__file__).parent.parent / "Config" / "clients_config.json",
             Path(__file__).parent.parent / "00_Formatting" / "configs" / "clients_config.json",
-        ]:
-            if candidate.exists():
-                config_path = str(candidate)
-                break
+        ]
+        for candidate in candidates:
+            try:
+                if candidate.exists():
+                    config_path = str(candidate)
+                    break
+            except OSError:
+                continue
+
+        # Last resort: scan for it
+        if not config_path and os.name == "nt":
+            import glob
+            found = glob.glob(r"M:\ARS\*\*clients_config*")
+            if not found:
+                found = glob.glob(r"M:\ARS\Config\*config*")
+            if found:
+                config_path = found[0]
 
     print()
     print("=" * 70)
