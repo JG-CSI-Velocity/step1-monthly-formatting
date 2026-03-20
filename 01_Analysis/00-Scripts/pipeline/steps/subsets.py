@@ -101,11 +101,16 @@ def step_subsets(ctx: PipelineContext) -> None:
 
         if eligible_prods and "Product Code" in df.columns:
             _prod_upper = [s.strip().upper() for s in eligible_prods]
-            _prod_mask = df["Product Code"].astype(str).str.strip().str.upper().isin(_prod_upper)
+            # Normalize: numeric values come through as "7.0" from Excel, strip trailing .0
+            _prod_series = df["Product Code"].astype(str).str.strip().str.upper()
+            _prod_series = _prod_series.str.replace(r'\.0$', '', regex=True)
+            _prod_mask = _prod_series.isin(_prod_upper)
             mask = mask & _prod_mask
+            _prod_unique = _prod_series.value_counts().head(10)
             logger.info(
-                "Eligible prod filter: config={cfg} -> {n:,} matches after both filters",
-                cfg=eligible_prods,
+                "Eligible prod filter: config={cfg}, data top values={vals} -> {n:,} matches after both filters",
+                cfg=_prod_upper,
+                vals=dict(_prod_unique),
                 n=mask.sum(),
             )
 
