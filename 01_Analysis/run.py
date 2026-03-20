@@ -126,6 +126,14 @@ def main():
                         help="Skip PowerPoint generation (Excel only)")
     args = parser.parse_args()
 
+    # Resolve fuzzy CSM name early so logs and paths all use the same name
+    if args.csm:
+        if os.name == "nt":
+            _csm_base = Path(r"M:\ARS\00_Formatting\02-Data-Ready for Analysis")
+        else:
+            _csm_base = Path("/Volumes/M/ARS/00_Formatting/02-Data-Ready for Analysis")
+        args.csm = _resolve_csm_name(args.csm, _csm_base)
+
     # Start logging to file: 04_Logs/CSM/month/clientID_YYYYMMDD_HHMMSS.log
     _log_csm = args.csm or "unknown"
     _log_month = args.month or datetime.now().strftime("%Y.%m")
@@ -191,14 +199,6 @@ def main():
     # Derive CSM and month -- prefer args, fall back to path parsing
     csm_name = args.csm or ""
     month = args.month or ""
-
-    # Resolve fuzzy CSM name (e.g. "James" -> "JamesG")
-    if csm_name:
-        if os.name == "nt":
-            _csm_base = Path(r"M:\ARS\00_Formatting\02-Data-Ready for Analysis")
-        else:
-            _csm_base = Path("/Volumes/M/ARS/00_Formatting/02-Data-Ready for Analysis")
-        csm_name = _resolve_csm_name(csm_name, _csm_base)
 
     if not csm_name or not month:
         try:
