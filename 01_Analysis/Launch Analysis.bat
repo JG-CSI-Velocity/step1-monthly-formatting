@@ -5,24 +5,47 @@ color 0A
 echo.
 echo ======================================================================
 echo   CSI VELOCITY - ARS Analysis Pipeline
-echo   Starting UI...
 echo ======================================================================
 echo.
+echo   [1] Launch UI (browser-based dashboard)
+echo   [2] Run from command line (specify client directly)
+echo.
+set /p choice="   Select (1 or 2): "
 
-:: Navigate to repo root (where ui_mockup.py lives)
+if "%choice%"=="1" goto ui
+if "%choice%"=="2" goto cli
+goto ui
+
+:ui
+echo.
+echo   Starting UI server...
+echo   (Your browser will open automatically)
+echo   (Close this window or press Ctrl+C to stop)
+echo.
+
 cd /d "%~dp0.."
 
-:: Check if streamlit is available
-where streamlit >nul 2>&1
-if %errorlevel% neq 0 (
-    echo   Streamlit not found. Running setup first...
-    echo.
-    pip install -r "%~dp0..\requirements.txt"
-    echo.
-)
+:: Install dependencies if needed
+pip install -r requirements.txt >nul 2>&1
 
-:: Launch the Streamlit UI
-echo   Opening browser...
-echo   (Close this window or press Ctrl+C to stop the server)
+:: Launch the FastAPI UI
+python ui\app.py
+goto end
+
+:cli
 echo.
-streamlit run ui_mockup.py --server.headless true --browser.gatherUsageStats false
+set /p month="   Month (e.g. 2026.03): "
+set /p csm="   CSM name (e.g. JamesG): "
+set /p client="   Client ID (e.g. 1200): "
+echo.
+echo   Running analysis for client %client%, month %month%...
+echo.
+
+cd /d "%~dp0"
+python run.py --month %month% --csm %csm% --client %client%
+
+echo.
+pause
+goto end
+
+:end
