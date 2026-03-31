@@ -453,19 +453,6 @@ def compute_inside_numbers(
         first_pct = ladder["first_count"] / ladder["total_successful"] * 100
         metrics.append((f"{first_pct:.0f}%", "First-time responders"))
 
-        # 5. Repeat movement up
-        if ladder["repeat_count"] > 0:
-            up_pct = ladder["movement_up"] / ladder["repeat_count"] * 100
-            metrics.append(
-                (f"{up_pct:.0f}%", "of repeat responders moved up the ladder")
-            )
-
-    # 6. Month-over-month delta
-    if prev_rate is not None and current_rate is not None:
-        delta = current_rate - prev_rate
-        sign = "+" if delta >= 0 else ""
-        metrics.append((f"{sign}{delta:.1f}pp", "vs prior mailer response rate"))
-
     return metrics
 
 

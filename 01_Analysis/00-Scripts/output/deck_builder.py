@@ -634,11 +634,11 @@ class DeckBuilder:
         COL_W = Inches(4.1)
         HEADER_SIZE = Pt(16)
 
-        ROW1_TOP = Inches(1.6)
-        KPI_VAL_TOP = Inches(2.1)
-        KPI_LBL_TOP = Inches(2.55)
-        SECT_TOP = Inches(3.2)
-        CHART_TOP = Inches(3.5)
+        ROW1_TOP = Inches(1.4)
+        KPI_VAL_TOP = Inches(1.9)
+        KPI_LBL_TOP = Inches(2.35)
+        SECT_TOP = Inches(2.9)
+        CHART_TOP = Inches(3.1)
 
         # Title -- use template placeholder (same format as P13 / LAYOUT_CUSTOM)
         if slide.shapes.title:
@@ -726,11 +726,11 @@ class DeckBuilder:
 
         # Inside the Numbers (column 3)
         if inside_numbers:
-            # Dynamic spacing: compress to fit all items (up to 6)
+            # Dynamic spacing: spread items evenly (max 4 items now)
             n_items = len(inside_numbers)
-            row_h = min(1.2, 3.3 / max(n_items, 1))
-            pct_size = Pt(22) if n_items > 4 else Pt(26)
-            desc_size = Pt(11) if n_items > 4 else Pt(13)
+            row_h = min(1.2, 3.5 / max(n_items, 1))
+            pct_size = Pt(26)
+            desc_size = Pt(13)
             row_box_h = Inches(row_h * 0.85)
 
             for i, item in enumerate(inside_numbers):
@@ -739,7 +739,7 @@ class DeckBuilder:
                 else:
                     pct, desc = item, ""
 
-                y_pos = 3.9 + i * row_h
+                y_pos = 3.5 + i * row_h
 
                 tb = slide.shapes.add_textbox(COL3_L, Inches(y_pos), Inches(1.4), row_box_h)
                 tf = tb.text_frame
@@ -1829,20 +1829,28 @@ def build_deck(ctx: PipelineContext) -> Path | None:
     # P12 (index 11) -> A13.5 (count trend)
     _mailer_by_id = {getattr(r, "slide_id", ""): r for r in mailer_results}
 
-    # Find FIRST mailer Swipes and Spend (sorted ascending = oldest first)
+    # Find FIRST mailer Swipes and Spend (sorted by actual date, oldest first)
+    def _mailer_date_key(slide_id):
+        ym = _parse_mailer_month(slide_id)
+        return ym if ym else (9999, 12)
+
     _swipes = next(
         (
             _mailer_by_id[k]
-            for k in sorted(_mailer_by_id)
-            if k.startswith("A12.") and "swipe" in k.lower()
+            for k in sorted(
+                (k for k in _mailer_by_id if k.startswith("A12.") and "swipe" in k.lower()),
+                key=_mailer_date_key,
+            )
         ),
         None,
     )
     _spend = next(
         (
             _mailer_by_id[k]
-            for k in sorted(_mailer_by_id)
-            if k.startswith("A12.") and "spend" in k.lower()
+            for k in sorted(
+                (k for k in _mailer_by_id if k.startswith("A12.") and "spend" in k.lower()),
+                key=_mailer_date_key,
+            )
         ),
         None,
     )

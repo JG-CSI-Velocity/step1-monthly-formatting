@@ -281,18 +281,28 @@ def build_deck(ctx) -> Path | None:
     # P02 stays as Agenda (no dashboard replacement)
 
     # Wire preamble placeholders to actual mailer results
-    # Use FIRST mailer (sorted ascending) not most recent
+    # Use FIRST mailer (sorted by date, oldest first)
     mailer_results = grouped.get("mailer", [])
     mailer_by_id = {getattr(r, "slide_id", ""): r for r in mailer_results}
 
+    from sections.mailer import _parse_mailer_month
+
+    def _mailer_date_key(slide_id):
+        ym = _parse_mailer_month(slide_id)
+        return ym if ym else (9999, 12)
+
     _swipes = next(
-        (mailer_by_id[k] for k in sorted(mailer_by_id)
-         if k.startswith("A12.") and "swipe" in k.lower()),
+        (mailer_by_id[k] for k in sorted(
+            (k for k in mailer_by_id if k.startswith("A12.") and "swipe" in k.lower()),
+            key=_mailer_date_key,
+        )),
         None,
     )
     _spend = next(
-        (mailer_by_id[k] for k in sorted(mailer_by_id)
-         if k.startswith("A12.") and "spend" in k.lower()),
+        (mailer_by_id[k] for k in sorted(
+            (k for k in mailer_by_id if k.startswith("A12.") and "spend" in k.lower()),
+            key=_mailer_date_key,
+        )),
         None,
     )
     _count_trend = mailer_by_id.get("A13.5")
