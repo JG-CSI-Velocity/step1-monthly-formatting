@@ -407,7 +407,10 @@ class DeckBuilder:
                     continue
 
     def _build_section_slide(self, slide, content: SlideContent) -> None:
-        """Build section divider slide."""
+        """Build section divider slide.
+
+        Uses same pattern as title slides: ph[0] = title 40pt, ph[1] = subtitle 24pt.
+        """
         title_text = content.title
         subtitle_text = None
 
@@ -416,17 +419,20 @@ class DeckBuilder:
             title_text = parts[0]
             subtitle_text = parts[1] if len(parts) > 1 else None
 
-        if slide.shapes.title:
-            slide.shapes.title.text = title_text
+        try:
+            slide.placeholders[0].text = title_text
+            for p in slide.placeholders[0].text_frame.paragraphs:
+                p.alignment = PP_ALIGN.LEFT
+                p.font.size = Pt(40)
+        except (KeyError, IndexError):
+            if slide.shapes.title:
+                slide.shapes.title.text = title_text
 
         if subtitle_text:
-            # New template: ph[1] is body on section layouts
-            for ph_idx in [1, 2]:
-                try:
-                    slide.placeholders[ph_idx].text = subtitle_text
-                    break
-                except (KeyError, IndexError):
-                    continue
+            try:
+                slide.placeholders[1].text = subtitle_text
+            except (KeyError, IndexError):
+                pass
 
     def _build_blank_slide(self, slide, content: SlideContent) -> None:
         """Build blank placeholder slide."""
@@ -614,6 +620,7 @@ class DeckBuilder:
 
     def _build_mailer_summary_slide(self, slide, content: SlideContent) -> None:
         """Build composite mailer summary slide -- 3 equal columns."""
+        # Keep ph[0] (title), remove other placeholders
         for ph in slide.placeholders:
             if ph.placeholder_format.idx != 0:
                 try:
@@ -633,15 +640,9 @@ class DeckBuilder:
         SECT_TOP = Inches(3.2)
         CHART_TOP = Inches(3.5)
 
-        # Title
-        tb = slide.shapes.add_textbox(Inches(0.5), Inches(0.38), Inches(9.0), Inches(0.6))
-        tf = tb.text_frame
-        tf.word_wrap = True
-        p = tf.paragraphs[0]
-        p.text = content.title
-        p.font.size = Pt(24)
-        p.font.bold = False
-        p.font.color.rgb = RGBColor(255, 255, 255)
+        # Title -- use template placeholder (same format as P13 / LAYOUT_CUSTOM)
+        if slide.shapes.title:
+            slide.shapes.title.text = content.title
 
         # Parse bullets
         insight_text = ""
