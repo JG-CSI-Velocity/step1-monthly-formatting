@@ -215,18 +215,57 @@ def _monthly_summaries(ctx: PipelineContext) -> list[AnalysisResult]:
             inside_bullets.append(f"{pct_str}|{desc}")
         # Segment response rates removed -- already shown in hbar chart
 
-        # Build insight text with MoM delta
-        if prev_rate is not None:
-            delta = overall_rate - prev_rate
-            direction = "increase" if delta >= 0 else "decrease"
-            insight_text = (
-                f"Mailed {total_mailed:,}, {total_resp:,} responded "
-                f"({overall_rate:.1f}%) -- {abs(delta):.1f}pp {direction} vs prior mailer"
+        # Build 2-3 sentence insight summary
+        pretty_month = format_title(month)
+
+        # Sentence 1: headline stat
+        s1 = (
+            f"The {pretty_month} mailer reached {total_mailed:,} accounts "
+            f"with a {overall_rate:.1f}% response rate ({total_resp:,} responders)."
+        )
+
+        # Sentence 2: which segment drove results
+        best_seg = max(
+            ((s, d) for s, d in seg_details.items() if d["mailed"] > 0),
+            key=lambda x: x[1]["rate"],
+            default=None,
+        )
+        largest_seg = max(
+            ((s, d) for s, d in seg_details.items() if d["responders"] > 0),
+            key=lambda x: x[1]["responders"],
+            default=None,
+        )
+        if best_seg and largest_seg and best_seg[0] != largest_seg[0]:
+            s2 = (
+                f"{best_seg[0]} led with the highest response rate at "
+                f"{best_seg[1]['rate']:.1f}%, while {largest_seg[0]} "
+                f"contributed the most responders ({largest_seg[1]['responders']:,})."
+            )
+        elif best_seg:
+            s2 = (
+                f"{best_seg[0]} drove the strongest response at "
+                f"{best_seg[1]['rate']:.1f}% "
+                f"({best_seg[1]['responders']:,} of {best_seg[1]['mailed']:,} mailed)."
             )
         else:
-            insight_text = (
-                f"Mailed {total_mailed:,}, {total_resp:,} responded ({overall_rate:.1f}%)"
-            )
+            s2 = ""
+
+        # Sentence 3: trend vs prior or first-mailer context
+        if prev_rate is not None:
+            delta = overall_rate - prev_rate
+            if abs(delta) < 0.5:
+                s3 = "Response rate held steady compared to the prior mailer."
+            elif delta > 0:
+                s3 = f"This is a {delta:.1f}pp improvement over the prior mailer."
+            else:
+                s3 = f"Response rate declined {abs(delta):.1f}pp from the prior mailer."
+        elif ladder and ladder["total_successful"] > 0:
+            first_pct = ladder["first_count"] / ladder["total_successful"] * 100
+            s3 = f"{first_pct:.0f}% of responders were first-time program participants."
+        else:
+            s3 = ""
+
+        insight_text = f"{s1} {s2} {s3}".strip()
 
         # Build KPIs
         kpis = {
