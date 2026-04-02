@@ -123,7 +123,9 @@ def step_subsets(ctx: PipelineContext) -> None:
                 n=mask.sum(),
             )
 
-        subs.eligible_data = df[mask]
+        # Filter eligible from OPEN accounts only (not closed)
+        _open_mask_for_elig = mask & _open_mask
+        subs.eligible_data = df[_open_mask_for_elig]
         logger.info("Eligible data: {n:,} rows", n=len(subs.eligible_data))
 
         # Personal/Business splits
