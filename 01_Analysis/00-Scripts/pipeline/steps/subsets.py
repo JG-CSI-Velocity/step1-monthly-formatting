@@ -21,23 +21,30 @@ def step_subsets(ctx: PipelineContext) -> None:
     df = ctx.data
     subs = DataSubsets()
 
-    # Auto-compute date range using TODAY as reference (enables L12M everywhere).
-    # Snap to LAST 12 COMPLETED calendar months relative to the current date.
-    # e.g. if today is Feb 23, 2026 -> L12M = Feb 1, 2025 - Jan 31, 2026.
-    # Store as pd.Timestamp so downstream comparisons against datetime64 columns work.
+    # Auto-compute date range using the DATA MONTH as reference (not today).
+    # The data month comes from ctx.client.month (e.g. "2026.03").
+    # L12M = last 12 completed months BEFORE the data month.
+    # e.g. data month 2026.03 -> L12M = Mar 1, 2025 - Feb 28, 2026.
     if "Date Opened" in df.columns and ctx.end_date is None:
         from dateutil.relativedelta import relativedelta
 
-        today = pd.Timestamp.now().normalize()
-        _first_of_current = today.replace(day=1)
-        # End of previous complete month
-        ctx.end_date = _first_of_current - pd.Timedelta(days=1)
+        # Use data month if available, otherwise fall back to today
+        _data_month = getattr(ctx.client, "month", None)
+        if _data_month and "." in _data_month:
+            _year, _mon = _data_month.split(".")
+            _first_of_data_month = pd.Timestamp(int(_year), int(_mon), 1)
+        else:
+            _first_of_data_month = pd.Timestamp.now().normalize().replace(day=1)
+
+        # End = last day of the month BEFORE the data month
+        ctx.end_date = _first_of_data_month - pd.Timedelta(days=1)
         # Start = first of month, 12 months before end_date's month
         ctx.start_date = pd.Timestamp(ctx.end_date.replace(day=1) - relativedelta(months=11))
         logger.info(
-            "Auto-computed date range: {start} to {end} (last 12 completed months from today)",
+            "Auto-computed date range: {start} to {end} (last 12 completed months before {month})",
             start=ctx.start_date,
             end=ctx.end_date,
+            month=_data_month or "today",
         )
 
     # Open accounts: Date Closed is blank OR Stat Code starts with "O"
