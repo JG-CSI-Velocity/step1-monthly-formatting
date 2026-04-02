@@ -314,12 +314,23 @@ def main():
             print(f"  Modules:  {_module_ids}")
             print()
 
+    # Parse --month into a date for analysis_date
+    from datetime import date as _date
+    _analysis_date = _date.today()
+    if month and "." in month:
+        try:
+            _y, _m = month.split(".")
+            _analysis_date = _date(int(_y), int(_m), 1)
+        except (ValueError, TypeError):
+            pass
+
     ctx = PipelineContext(
         client_id=client_id,
         client_name=client_name,
         csm="",
         output_dir=output_dir,
         input_files={"oddd": str(odd_path)},
+        analysis_date=_analysis_date,
         client_config={
             "config_path": config_path,
             "client_id": client_id,
