@@ -12,7 +12,7 @@
 - Decimal phases (11.1, 11.2): Urgent insertions (marked with INSERTED)
 
 - [x] **Phase 11: Repo Reset and Cleanup** - Reset local repo to clean GitHub state (a314c50), remove all v1.0 artifacts ✓ 2026-04-10
-- [ ] **Phase 12: Folder Structure** - Create 02-05 directories, move config and UI files, mirror M:\ARS\ layout
+- [x] **Phase 12: Folder Structure** - Create 02-05 directories, move config and UI files, mirror M:\ARS\ layout (completed 2026-04-10)
 - [ ] **Phase 13: TXN Merge Batch 1** - Merge first 11 TXN folders (general through transaction_type) with overlap handling
 - [ ] **Phase 14: TXN Merge Batch 2** - Merge remaining 11 TXN folders (product through executive), completing all 22 folders
 - [ ] **Phase 15: Setup Parameterization** - Convert hardcoded client 1776 references to configurable client ID
@@ -42,10 +42,10 @@ Plans:
   3. FastAPI app.py and all static UI files are under 05_UI/ (ui/ directory no longer exists)
   4. Running `ls` at repo root shows 00_Formatting, 01_Analysis, 02_Powerpoint, 02_Presentations, 03_Config, 04_Logs, 05_UI as the primary structure
   5. Work PC can `git pull` this commit and see the same folder layout as M:\ARS\
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [x] 12-01-PLAN.md -- Create 03_Config/, move config files, update import paths
-- [ ] 12-02-PLAN.md -- Create remaining dirs, copy 02_Powerpoint, move UI, delete mockups, push gate
+- [x] 12-02-PLAN.md -- Create remaining dirs, copy 02_Powerpoint, move UI, delete mockups, push gate
 
 ### Phase 13: TXN Merge Batch 1
 **Goal**: First 11 TXN section folders (general through transaction_type) are merged into 01_Analysis/00-Scripts/analytics/ with overlap modules kept separate
@@ -57,7 +57,9 @@ Plans:
   3. ARS rege/ is untouched and TXN rege scripts go to rege_overdraft/ (both directories exist side by side)
   4. ARS mailer/ is untouched and TXN campaign scripts go to campaign/ (both directories exist side by side)
   5. 00-setup scripts are placed in shared/ or 03_Config/ as utility files with .py extensions
-**Plans**: TBD
+**Plans:** 1 plan
+Plans:
+- [ ] 13-01-PLAN.md -- Copy 12 TXN folders (238 scripts) with .py extensions, push gate
 
 ### Phase 14: TXN Merge Batch 2
 **Goal**: Remaining 11 TXN section folders (product through executive) are merged, completing the full 22-folder TXN integration
@@ -100,8 +102,8 @@ Note: Phase 15 can proceed in parallel with Phase 14 (both depend on Phase 13). 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 11. Repo Reset | v1.1 | 1/1 | Complete | 2026-04-10 |
-| 12. Folder Structure | v1.1 | 1/2 | In Progress|  |
-| 13. TXN Merge Batch 1 | v1.1 | 0/0 | Not started | - |
+| 12. Folder Structure | v1.1 | 2/2 | Complete    | 2026-04-10 |
+| 13. TXN Merge Batch 1 | v1.1 | 0/1 | Planning complete | - |
 | 14. TXN Merge Batch 2 | v1.1 | 0/0 | Not started | - |
 | 15. Setup Parameterization | v1.1 | 0/0 | Not started | - |
 | 16. Verification | v1.1 | 0/0 | Not started | - |
