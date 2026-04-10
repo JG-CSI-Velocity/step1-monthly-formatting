@@ -42,9 +42,9 @@ Plans:
   3. FastAPI app.py and all static UI files are under 05_UI/ (ui/ directory no longer exists)
   4. Running `ls` at repo root shows 00_Formatting, 01_Analysis, 02_Powerpoint, 02_Presentations, 03_Config, 04_Logs, 05_UI as the primary structure
   5. Work PC can `git pull` this commit and see the same folder layout as M:\ARS\
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
-- [ ] 12-01-PLAN.md -- Create 03_Config/, move config files, update import paths
+- [x] 12-01-PLAN.md -- Create 03_Config/, move config files, update import paths
 - [ ] 12-02-PLAN.md -- Create remaining dirs, copy 02_Powerpoint, move UI, delete mockups, push gate
 
 ### Phase 13: TXN Merge Batch 1
@@ -100,7 +100,7 @@ Note: Phase 15 can proceed in parallel with Phase 14 (both depend on Phase 13). 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 11. Repo Reset | v1.1 | 1/1 | Complete | 2026-04-10 |
-| 12. Folder Structure | v1.1 | 0/2 | Planned | - |
+| 12. Folder Structure | v1.1 | 1/2 | In Progress|  |
 | 13. TXN Merge Batch 1 | v1.1 | 0/0 | Not started | - |
 | 14. TXN Merge Batch 2 | v1.1 | 0/0 | Not started | - |
 | 15. Setup Parameterization | v1.1 | 0/0 | Not started | - |
