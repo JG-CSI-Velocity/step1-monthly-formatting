@@ -521,14 +521,17 @@ async def start_run(
                 runs[run_id]["log"].append(f"Check: {READY_FOR_ANALYSIS / csm / month / client_id}")
                 return
 
-            runs[run_id]["current_step"] = "Step 2: Running analysis..."
+            product_label = {"ars": "ARS", "txn": "TXN", "combined": "ARS + TXN"}.get(product, "ARS")
+            runs[run_id]["current_step"] = f"Step 2: Running {product_label} analysis..."
             runs[run_id]["log"].append("=" * 60)
-            runs[run_id]["log"].append("  STEP 2: Running ARS Analysis")
+            runs[run_id]["log"].append(f"  STEP 2: Running {product_label} Analysis")
             runs[run_id]["log"].append("=" * 60)
 
+            cmd = [sys.executable, "-u", str(analysis_run),
+                   "--month", month, "--csm", csm, "--client", client_id,
+                   "--product", product]
             proc = subprocess.Popen(
-                [sys.executable, "-u", str(analysis_run),
-                 "--month", month, "--csm", csm, "--client", client_id],
+                cmd,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, encoding="utf-8", errors="replace",
                 bufsize=1,
