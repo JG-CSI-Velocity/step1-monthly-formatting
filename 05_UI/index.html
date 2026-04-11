@@ -1354,31 +1354,38 @@ function loadResults() {
     document.getElementById('resultsViewer').style.display = 'block';
     document.getElementById('resultsEmpty').style.display = 'none';
 
-    // Try to load real charts from API, fall back to demo
-    currentSlides = demoSlides;
+    // Clear and show loading state
+    currentSlides = [];
     currentSlideIdx = 0;
     currentResultSection = 'all';
-    renderResultsSidebar();
-    showSlide(0);
+    document.getElementById('rSlideTitle').textContent = 'Loading charts...';
+    document.getElementById('rSlideModule').textContent = '';
 
-    // Try API
+    // Load real charts from API
     tryLoadRealResults(sel.value);
 }
 
 async function tryLoadRealResults(clientId) {
     try {
-        // Get CSM and month from the selected results dropdown option
         const rSel = document.getElementById('rClientSel');
         const selectedOpt = rSel?.selectedOptions[0];
         const csm = selectedOpt?.dataset?.csm || document.getElementById('gCsmSel')?.value || '';
         const month = selectedOpt?.dataset?.month || document.getElementById('gMonthSel')?.value || '';
         const resp = await fetch(`/api/outputs/${csm}/${month}/${clientId}`);
-        if (!resp.ok) return;
+        if (!resp.ok) {
+            document.getElementById('rSlideTitle').textContent = 'No results found';
+            return;
+        }
         const files = await resp.json();
-        const charts = files.filter(f => f.type === 'png' && f.category === 'chart');
+
+        // Charts become browsable slides
+        const charts = files.filter(f => f.type === 'png');
+        // Downloadable files (Excel, PPTX)
+        const downloads = files.filter(f => f.type === 'xlsx' || f.type === 'pptx');
+
         if (charts.length > 0) {
             currentSlides = charts.map(c => ({
-                section: c.name.split('_')[0] || 'Analysis',
+                section: c.name.split('_')[0] || c.category || 'Analysis',
                 module: c.name.replace('.png', ''),
                 title: c.name.replace('.png', '').replace(/_/g, ' '),
                 hasChart: true,
@@ -1386,8 +1393,33 @@ async function tryLoadRealResults(clientId) {
             }));
             renderResultsSidebar();
             showSlide(0);
+        } else {
+            document.getElementById('rSlideTitle').textContent = 'No chart images found';
+            document.getElementById('rSlideModule').textContent = `${files.length} file(s) available for download`;
         }
-    } catch(e) {}
+
+        // Show download links for Excel/PPTX
+        if (downloads.length > 0) {
+            const dlGrid = document.getElementById('gDl');
+            if (dlGrid) {
+                dlGrid.classList.add('visible');
+                dlGrid.innerHTML = '';
+                downloads.forEach(f => {
+                    const card = document.createElement('div');
+                    card.className = 'dl-card card';
+                    card.onclick = () => window.open(`/api/download?path=${encodeURIComponent(f.path)}`);
+                    card.innerHTML = `
+                        <div class="dl-ext">${f.type.toUpperCase()}</div>
+                        <div class="dl-name">${f.name}</div>
+                        <div class="dl-meta">${f.size_mb} MB</div>
+                    `;
+                    dlGrid.appendChild(card);
+                });
+            }
+        }
+    } catch(e) {
+        document.getElementById('rSlideTitle').textContent = 'Error loading results';
+    }
 }
 
 function renderResultsSidebar() {
