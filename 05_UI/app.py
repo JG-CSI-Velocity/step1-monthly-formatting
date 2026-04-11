@@ -95,7 +95,8 @@ def find_formatted_odd(csm, month, client_id):
 
 
 def get_recent_runs():
-    """Scan logs directory for recent run info."""
+    """Scan logs directory for recent run info with parsed details."""
+    import re
     recent = []
     if not LOGS_BASE.exists():
         return recent
@@ -107,12 +108,42 @@ def get_recent_runs():
                 continue
             for log_file in sorted(month_dir.glob("*.log"), reverse=True):
                 parts = log_file.stem.split("_")
+                client_id = parts[0] if parts else "?"
+
+                # Parse log for duration, slide count, status
+                duration = "--"
+                slides = "--"
+                status = "complete"
+                client_name = ""
+                try:
+                    text = log_file.read_text(encoding="utf-8", errors="replace")
+                    # Look for: Pipeline done: 1776 (CoastHills CU) -- 4/4 steps in 1824.2s
+                    m = re.search(r"Pipeline done:.*?(\d+)\s+\(([^)]+)\).*?in\s+([\d.]+)s", text)
+                    if m:
+                        client_name = m.group(2)
+                        secs = float(m.group(3))
+                        mins = int(secs // 60)
+                        duration = f"{mins}m {int(secs % 60)}s"
+                    # Look for: ARS complete: 108 slides generated
+                    m2 = re.search(r"(\d+)\s+slides?\s+generated", text)
+                    if m2:
+                        slides = m2.group(1)
+                    # Check for errors
+                    if "ERROR" in text and "0 failed" not in text:
+                        status = "warning"
+                except Exception:
+                    pass
+
                 recent.append({
                     "csm": csm_dir.name,
                     "month": month_dir.name,
-                    "client_id": parts[0] if parts else "?",
+                    "client_id": client_id,
+                    "client_name": client_name,
                     "timestamp": log_file.stem,
                     "file": str(log_file),
+                    "duration": duration,
+                    "slides": slides,
+                    "status": status,
                 })
                 if len(recent) >= 20:
                     return recent
@@ -275,7 +306,7 @@ async def get_recent():
 
 @app.get("/api/stats")
 async def get_stats():
-    """Dashboard KPIs."""
+    """Dashboard KPIs with richer data."""
     config = load_clients_config()
     recent = get_recent_runs()
 
@@ -292,14 +323,71 @@ async def get_stats():
     pptx_count = 0
     if PRESENTATIONS_BASE.exists():
         for f in PRESENTATIONS_BASE.rglob("*.pptx"):
-            pptx_count += 1
+            if "_SAMPLER" not in f.name:
+                pptx_count += 1
+
+    # Calculate avg run time from recent runs
+    avg_time = "--"
+    durations = [r["duration"] for r in recent if r.get("duration", "--") != "--"]
+    if durations:
+        import re
+        total_secs = 0
+        for d in durations:
+            m = re.match(r"(\d+)m\s*(\d+)s", d)
+            if m:
+                total_secs += int(m.group(1)) * 60 + int(m.group(2))
+        if total_secs and durations:
+            avg_secs = total_secs // len(durations)
+            avg_time = f"{avg_secs // 60}m {avg_secs % 60}s"
+
+    # Success rate
+    success_count = sum(1 for r in recent if r.get("status") == "complete")
+    success_rate = f"{round(success_count / len(recent) * 100)}%" if recent else "--"
+
+    # Reports by CSM
+    csm_counts = {}
+    if PRESENTATIONS_BASE.exists():
+        for csm_dir in PRESENTATIONS_BASE.iterdir():
+            if csm_dir.is_dir() and not csm_dir.name.startswith("."):
+                count = sum(1 for _ in csm_dir.rglob("*.pptx") if "_SAMPLER" not in _.name)
+                if count > 0:
+                    csm_counts[csm_dir.name] = count
 
     return {
         "total_clients": len(config),
         "completed_clients": len(completed_clients),
         "reports_generated": pptx_count,
         "recent_runs": len(recent),
+        "avg_time": avg_time,
+        "success_rate": success_rate,
+        "csm_counts": csm_counts,
     }
+
+
+@app.get("/api/results/clients")
+async def get_results_clients():
+    """Return clients that have completed analysis results (for Results tab dropdown)."""
+    clients = []
+    if COMPLETED_ANALYSIS.exists():
+        for csm_dir in sorted(COMPLETED_ANALYSIS.iterdir()):
+            if not csm_dir.is_dir():
+                continue
+            for month_dir in sorted(csm_dir.iterdir(), reverse=True):
+                if not month_dir.is_dir():
+                    continue
+                for client_dir in sorted(month_dir.iterdir()):
+                    if not client_dir.is_dir():
+                        continue
+                    chart_count = sum(1 for _ in client_dir.rglob("*.png"))
+                    if chart_count > 0:
+                        clients.append({
+                            "client_id": client_dir.name,
+                            "csm": csm_dir.name,
+                            "month": month_dir.name,
+                            "charts": chart_count,
+                            "label": f"{client_dir.name} -- {csm_dir.name} / {month_dir.name} ({chart_count} charts)",
+                        })
+    return clients
 
 
 @app.post("/api/format")

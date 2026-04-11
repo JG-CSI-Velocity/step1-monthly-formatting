@@ -613,8 +613,8 @@ function showPage(name) {
 }
 
 // ─── DASHBOARD CHARTS ───
-const accent = '#c67a3c';
-const green = '#5a8a6a';
+const accent = '#F15D22';
+const green = '#2e7d32';
 const muted = '#c8c3bc';
 
 // Dashboard charts will be populated from API data when available
@@ -1038,6 +1038,31 @@ async function loadDashboardData() {
             const stats = await statsResp.json();
             document.getElementById('kpiClients').textContent = stats.total_clients;
             document.getElementById('kpiReports').textContent = stats.reports_generated;
+            document.getElementById('kpiAvgTime').textContent = stats.avg_time || '--';
+            document.getElementById('kpiSuccess').textContent = stats.success_rate || '--';
+
+            // Build CSM chart if data exists
+            if (stats.csm_counts && Object.keys(stats.csm_counts).length > 0) {
+                const container = document.getElementById('chartAnalystsContainer');
+                container.innerHTML = '<canvas id="chartAnalysts"></canvas>';
+                new Chart(document.getElementById('chartAnalysts'), {
+                    type: 'bar',
+                    data: {
+                        labels: Object.keys(stats.csm_counts),
+                        datasets: [{
+                            label: 'Reports',
+                            data: Object.values(stats.csm_counts),
+                            backgroundColor: accent,
+                            borderRadius: 6,
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+                    }
+                });
+            }
         }
 
         // Load recent runs
@@ -1045,23 +1070,23 @@ async function loadDashboardData() {
         if (!resp.ok) return;
         const runs = await resp.json();
 
-        if (runs.length > 0) {
-            document.getElementById('kpiSuccess').textContent = runs.length + ' runs';
-        }
-
-        // Update recent runs table
+        // Update recent runs table (dashboard)
         const tbody = document.getElementById('recentRunsBody');
         if (tbody && runs.length > 0) {
             tbody.innerHTML = '';
             runs.forEach(r => {
+                const statusBadge = r.status === 'complete'
+                    ? '<span class="badge badge-green">Complete</span>'
+                    : '<span class="badge badge-accent">Warning</span>';
+                const name = r.client_name ? ` - ${r.client_name}` : '';
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td><strong>${r.client_id}</strong></td>
+                    <td><strong>${r.client_id}</strong>${name}</td>
                     <td>ARS</td>
                     <td>${r.csm}</td>
                     <td>${r.month}</td>
-                    <td class="mono">${r.timestamp.split('_').slice(-2).join(' ')}</td>
-                    <td><span class="badge badge-green">Complete</span></td>
+                    <td class="mono">${r.duration || '--'}</td>
+                    <td>${statusBadge}</td>
                 `;
                 tbody.appendChild(tr);
             });
@@ -1072,24 +1097,50 @@ async function loadDashboardData() {
         if (hbody && runs.length > 0) {
             hbody.innerHTML = '';
             runs.forEach(r => {
+                const statusBadge = r.status === 'complete'
+                    ? '<span class="badge badge-green">Complete</span>'
+                    : '<span class="badge badge-accent">Warning</span>';
+                const name = r.client_name ? ` - ${r.client_name}` : '';
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td><strong>${r.client_id}</strong></td>
+                    <td><strong>${r.client_id}</strong>${name}</td>
                     <td>ARS</td>
-                    <td class="mono">22</td>
+                    <td class="mono">${r.slides || '--'}</td>
                     <td>${r.csm}</td>
                     <td>${r.month}</td>
-                    <td class="mono">--</td>
-                    <td class="mono">--</td>
-                    <td><span class="badge badge-green">Complete</span></td>
+                    <td class="mono">${r.duration || '--'}</td>
+                    <td class="mono">${r.slides || '--'}</td>
+                    <td>${statusBadge}</td>
                 `;
                 hbody.appendChild(tr);
             });
         }
 
+        // Populate Results tab client dropdown
+        loadResultsClients();
+
     } catch(e) {
         console.error('Dashboard data not available (API may not be running)');
     }
+}
+
+async function loadResultsClients() {
+    try {
+        const resp = await fetch('/api/results/clients');
+        if (!resp.ok) return;
+        const clients = await resp.json();
+        const sel = document.getElementById('rClientSel');
+        if (!sel || clients.length === 0) return;
+        sel.innerHTML = '<option value="">Select a client...</option>';
+        clients.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.client_id;
+            opt.dataset.csm = c.csm;
+            opt.dataset.month = c.month;
+            opt.textContent = c.label;
+            sel.appendChild(opt);
+        });
+    } catch(e) {}
 }
 
 // Load dashboard data on page load
@@ -1252,8 +1303,11 @@ function loadResults() {
 
 async function tryLoadRealResults(clientId) {
     try {
-        const csm = document.getElementById('gCsmSel')?.value || 'JamesG';
-        const month = document.getElementById('gMonthSel')?.value || '2026.03';
+        // Get CSM and month from the selected results dropdown option
+        const rSel = document.getElementById('rClientSel');
+        const selectedOpt = rSel?.selectedOptions[0];
+        const csm = selectedOpt?.dataset?.csm || document.getElementById('gCsmSel')?.value || '';
+        const month = selectedOpt?.dataset?.month || document.getElementById('gMonthSel')?.value || '';
         const resp = await fetch(`/api/outputs/${csm}/${month}/${clientId}`);
         if (!resp.ok) return;
         const files = await resp.json();
