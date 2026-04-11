@@ -419,7 +419,7 @@ async def start_format(
     def _run():
         try:
             cmd = [sys.executable, "-u", str(formatting_run),
-                   "--month", month, "--csm", csm]
+                   "--month", month, "--csm", csm, "--with-trans"]
             if client_id:
                 cmd.extend(["--client", client_id])
             if force:
