@@ -353,6 +353,8 @@ def main():
                         help="Also copy workbook files from R: drive into client folders")
     parser.add_argument("--with-all", action="store_true",
                         help="Gather all extra files (trans + deferred + workbook)")
+    parser.add_argument("--parallel", type=int, default=1,
+                        help="Number of clients to format in parallel (default: 1, sequential)")
     args = parser.parse_args()
 
     month = args.month or datetime.now().strftime("%Y.%m")
@@ -380,6 +382,8 @@ def main():
         extras.append("workbook")
     if extras:
         print(f"  Extras: {', '.join(extras)}")
+    if args.parallel > 1:
+        print(f"  Parallel: {args.parallel} workers")
     print("=" * 70)
     print()
 
@@ -426,12 +430,10 @@ def main():
         if config_path.exists():
             clients_config = json.loads(config_path.read_text(encoding="utf-8"))
 
-    for csm_name, csm_source in active_csms.items():
-        # Source: CSM's M: drive folder with the month subfolder
+    def _process_one_csm(csm_name, csm_source):
+        """Process a single CSM -- can be called in parallel."""
         src = Path(csm_source) / month
-        # Staging: 01-Data-Ready for Formatting/CSM/YYYY.MM
         staging = staging_base / csm_name / month
-        # Output: 02-Data-Ready for Analysis/CSM/YYYY.MM
         output = output_base / csm_name / month
 
         log_message(f"  {csm_name}:", log_file)
@@ -440,8 +442,6 @@ def main():
         log_message(f"    Output:  {output}", log_file)
 
         success, errors = process_csm(csm_name, str(src), str(staging), str(output), log_file, args.client, args.force)
-        total_success += success
-        total_errors += errors
 
         # ─── EXTRA FILE GATHERING ───
         output_str = str(output)
@@ -470,6 +470,34 @@ def main():
                 log_message(f"  {csm_name}: Gathering workbook files...", log_file)
                 w_ok, w_err = gather_workbook_files(client_ids, workbook_base, csm_folder_name, month, output_str, log_file)
                 log_message(f"    Workbooks: {w_ok} copied, {w_err} errors", log_file)
+
+        return success, errors
+
+    if args.parallel > 1 and len(active_csms) > 1:
+        # Parallel: process multiple CSMs concurrently
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        log_message(f"  Parallel mode: {args.parallel} workers for {len(active_csms)} CSMs", log_file)
+
+        with ThreadPoolExecutor(max_workers=args.parallel) as pool:
+            futures = {
+                pool.submit(_process_one_csm, name, path): name
+                for name, path in active_csms.items()
+            }
+            for future in as_completed(futures):
+                csm_name = futures[future]
+                try:
+                    success, errors = future.result()
+                    total_success += success
+                    total_errors += errors
+                except Exception as exc:
+                    log_message(f"  {csm_name}: PARALLEL ERROR: {exc}", log_file)
+                    total_errors += 1
+    else:
+        # Sequential: one CSM at a time
+        for csm_name, csm_source in active_csms.items():
+            success, errors = _process_one_csm(csm_name, csm_source)
+            total_success += success
+            total_errors += errors
 
     # Summary
     print()
