@@ -1799,34 +1799,6 @@ def build_deck(ctx: PipelineContext) -> Path | None:
         "mailer": _convert_list(mailer_appendix),
     }
 
-    # ─── SECTION SLIDE CAPS ──────────────────────────────────────────
-    # Max main-body slides per section (from SLIDE_MAPPING / preview.py).
-    # Keeps the N most important slides; excess goes to appendix.
-    # Set to None or remove entry to keep all slides for a section.
-    _SECTION_MAX_MAIN = {
-        "overview": 3,      # A1, A1b, A3
-        "dctr": 20,         # DCTR-2..16 + A7 merges + A11.1 (generous for now)
-        "rege": 7,          # A8.3, A8.4a, A8.4b, A8.10+11, A8.5+6, A8.13, A11.2
-        "attrition": 6,     # A9.1, A9.3+6, A9.9, A9.10, A9.11, A9.12
-        "mailer": 12,       # 2 months x 3 (summary+swipes+spend) + revisit + agg + A13.5 + A13.6
-        "value": 2,         # A11.1, A11.2 (but usually absorbed)
-        "insights": 8,      # S1-S5 + A18.1 + A19.1 + A20.1
-        "transaction": 10,  # placeholder for TXN
-        "ics": 8,           # placeholder for ICS
-    }
-    for section_key, max_main in _SECTION_MAX_MAIN.items():
-        main_slides = _section_main.get(section_key, [])
-        if max_main is not None and len(main_slides) > max_main:
-            overflow = main_slides[max_main:]
-            _section_main[section_key] = main_slides[:max_main]
-            # Push overflow to appendix
-            existing_appendix = _section_appendix.get(section_key, [])
-            _section_appendix[section_key] = existing_appendix + overflow
-            logger.info(
-                "Section {s}: capped at {n} main slides, {o} moved to appendix",
-                s=section_key, n=max_main, o=len(overflow),
-            )
-
     # Build main body in SCR order
     for section_key in SECTION_ORDER:
         slides = _section_main.get(section_key, [])

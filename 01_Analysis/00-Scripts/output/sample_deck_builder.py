@@ -1,18 +1,17 @@
-"""Sample Deck Builder -- generates a review PPTX showing all slide variants per section.
+"""Sample Deck Builder -- generates a SAMPLER PPTX with real data + labels.
 
-For each section, creates divider slides labeling each variant:
-  "SECTION: Mailer -- Slide 1 of 33 -- slide_id: A12.Jan26.Swipes -- type: screenshot -- layout: 8"
+Every slide from the real analysis gets built with its actual chart/data,
+plus a label stamp showing: section, slide_id, layout name, slide type.
 
-JG reviews the sampler, picks winners per section, and those choices
-get locked into the master deck_builder.py.
+JG reviews the sampler, marks which slides to KEEP per section, and those
+choices define what the master deck_builder produces.
 
-Usage (from command line):
+Usage:
     cd M:\\ARS\\01_Analysis
     python -m ars_analysis.output.sample_deck_builder --month 2026.04 --csm JamesG --client 1776
 
-Or called from Python:
-    from ars_analysis.output.sample_deck_builder import build_sample_deck
-    build_sample_deck(ctx)
+Or run analysis first, then build sampler from existing results:
+    python -m ars_analysis.output.sample_deck_builder --month 2026.04 --csm JamesG --client 1776 --results-only
 """
 
 from __future__ import annotations
@@ -21,10 +20,6 @@ import calendar
 from pathlib import Path
 
 from loguru import logger
-from pptx import Presentation
-from pptx.util import Inches, Pt
-from pptx.dml.color import RGBColor
-from pptx.enum.text import PP_ALIGN
 
 from ars_analysis.pipeline.context import PipelineContext
 from ars_analysis.output.deck_builder import (
@@ -35,79 +30,38 @@ from ars_analysis.output.deck_builder import (
     _SECTION_LABELS,
     SECTION_ORDER,
     LAYOUT_SECTION,
+    LAYOUT_SECTION_ALT,
     LAYOUT_CUSTOM,
     LAYOUT_CONTENT,
-    LAYOUT_BLANK,
 )
 
-# Layout name lookup for labels
+# Layout name lookup
 _LAYOUT_NAMES = {
-    0: "TITLE_DARK",
-    1: "TITLE",
-    2: "CONTENT",
-    3: "CONTENT_ALT",
-    4: "SECTION",
-    5: "SECTION_ALT",
-    6: "SECTION_GRAY",
-    7: "TITLE_VARIANT",
-    8: "CUSTOM",
-    9: "TWO_CONTENT",
-    10: "COMPARISON",
-    11: "BLANK",
-    12: "BULLETS",
-    13: "PICTURE",
-    14: "2_PICTURES",
-    15: "3_PICTURES",
-    16: "WIDE_TITLE",
-    17: "TITLE_RPE",
-    18: "TITLE_ARS",
-    19: "TITLE_ICS",
+    0: "TITLE_DARK", 1: "TITLE", 2: "CONTENT", 3: "CONTENT_ALT",
+    4: "SECTION", 5: "SECTION_ALT", 6: "SECTION_GRAY", 7: "TITLE_VARIANT",
+    8: "CUSTOM", 9: "TWO_CONTENT", 10: "COMPARISON", 11: "BLANK",
+    12: "BULLETS", 13: "PICTURE", 14: "2_PICTURES", 15: "3_PICTURES",
+    16: "WIDE_TITLE", 17: "TITLE_RPE", 18: "TITLE_ARS", 19: "TITLE_ICS",
 }
 
 
-def _label_slide(section_name: str, idx: int, total: int, result) -> SlideContent:
-    """Create a label slide that describes the next variant."""
-    slide_id = getattr(result, "slide_id", "unknown")
-    slide_type = getattr(result, "slide_type", "screenshot")
+def _stamp_title(original_title: str, section: str, idx: int, total: int, result) -> str:
+    """Prepend a metadata stamp to the slide title."""
+    slide_id = getattr(result, "slide_id", "?")
     layout_idx = getattr(result, "layout_index", LAYOUT_CUSTOM)
     layout_name = _LAYOUT_NAMES.get(layout_idx, str(layout_idx))
-    title_text = getattr(result, "title", "")
-    has_chart = bool(getattr(result, "chart_path", None))
-    has_kpis = bool(getattr(result, "kpis", None))
-    has_bullets = bool(getattr(result, "bullets", None))
+    slide_type = getattr(result, "slide_type", "screenshot")
 
-    label = (
-        f"SECTION: {section_name}\n"
-        f"Option {idx + 1} of {total}\n"
-        f"\n"
-        f"slide_id: {slide_id}\n"
-        f"type: {slide_type}\n"
-        f"layout: {layout_idx} ({layout_name})\n"
-        f"title: {title_text[:80]}{'...' if len(title_text) > 80 else ''}\n"
-        f"has_chart: {has_chart}\n"
-        f"has_kpis: {has_kpis}\n"
-        f"has_bullets: {has_bullets}"
-    )
-
-    return SlideContent(
-        slide_type="section",
-        title=label,
-        layout_index=LAYOUT_SECTION,
-    )
+    stamp = f"[{section.upper()} {idx+1}/{total}] id:{slide_id} | layout:{layout_idx} ({layout_name}) | type:{slide_type}"
+    return f"{stamp}\n{original_title}"
 
 
 def build_sample_deck(ctx: PipelineContext) -> Path | None:
-    """Build a sample/review PPTX showing all slide variants per section.
-
-    For each section:
-    1. Section divider: "SECTION: {name} -- {N} variants"
-    2. For each variant: label slide (metadata) + actual rendered slide
-    """
+    """Build a sampler PPTX with real data -- every slide stamped with metadata."""
     if not ctx.all_slides:
         logger.warning("No slides to build sample deck from")
         return None
 
-    # Resolve template
     from ars_analysis.output.deck_builder import _FALLBACK_TEMPLATE
     template = _FALLBACK_TEMPLATE
     if ctx.settings and hasattr(ctx.settings, "paths"):
@@ -119,11 +73,9 @@ def build_sample_deck(ctx: PipelineContext) -> Path | None:
         logger.warning("Template not found: {name}", name=template.name)
         return None
 
-    # Group results by section
     sections = _group_by_section(ctx.all_slides)
     _ctx_results = ctx.results if ctx else {}
 
-    # Build month/client info
     client_name = ctx.client.client_name
     month = ctx.client.month
     try:
@@ -143,20 +95,20 @@ def build_sample_deck(ctx: PipelineContext) -> Path | None:
         layout_index=0,
     ))
 
-    # Summary slide showing section counts
-    summary_lines = []
+    # Summary slide
+    summary_lines = [f"SLIDE SAMPLER -- Review each slide, note which to KEEP\n"]
+    total_all = 0
     for section_key in SECTION_ORDER:
         results = sections.get(section_key, [])
         if results:
             label = _SECTION_LABELS.get(section_key, section_key.title())
-            summary_lines.append(f"{label}: {len(results)} variants")
-
+            summary_lines.append(f"{label}: {len(results)} slides")
+            total_all += len(results)
     other = sections.get("other", [])
     if other:
-        summary_lines.append(f"Other/Uncategorized: {len(other)} variants")
-
-    total = sum(len(v) for v in sections.values())
-    summary_lines.insert(0, f"TOTAL: {total} slide variants across {len([s for s in sections if sections[s]])} sections\n")
+        summary_lines.append(f"Uncategorized: {len(other)} slides")
+        total_all += len(other)
+    summary_lines.append(f"\nTOTAL: {total_all} slides")
 
     all_slides.append(SlideContent(
         slide_type="section",
@@ -164,7 +116,7 @@ def build_sample_deck(ctx: PipelineContext) -> Path | None:
         layout_index=LAYOUT_SECTION,
     ))
 
-    # For each section, show all variants
+    # Each section
     for section_key in SECTION_ORDER:
         results = sections.get(section_key, [])
         if not results:
@@ -172,38 +124,44 @@ def build_sample_deck(ctx: PipelineContext) -> Path | None:
 
         label = _SECTION_LABELS.get(section_key, section_key.title())
 
-        # Section header
+        # Section divider
         all_slides.append(SlideContent(
             slide_type="section",
-            title=f"SECTION: {label}\n{len(results)} variants to review\n\nPick your favorites from the following slides.",
-            layout_index=LAYOUT_SECTION,
+            title=f"SECTION: {label}\n{len(results)} slides\n\nReview each slide. Note which to KEEP.",
+            layout_index=LAYOUT_SECTION_ALT,
         ))
 
-        # Each variant: label + actual slide
+        # Each real slide with stamped title
         for i, result in enumerate(results):
-            # Label slide with metadata
-            all_slides.append(_label_slide(section_key, i, len(results), result))
-
-            # Actual rendered slide
             sc = _result_to_slide(result, ctx_results=_ctx_results)
             if sc:
+                sc.title = _stamp_title(sc.title, section_key, i, len(results), result)
                 all_slides.append(sc)
+            else:
+                # Slide couldn't render (no chart, failed, etc.) -- show placeholder
+                slide_id = getattr(result, "slide_id", "?")
+                title_text = getattr(result, "title", "untitled")
+                all_slides.append(SlideContent(
+                    slide_type="section",
+                    title=f"[{section_key.upper()} {i+1}/{len(results)}] id:{slide_id}\nCOULD NOT RENDER\n{title_text}",
+                    layout_index=LAYOUT_SECTION,
+                ))
 
-    # Handle "other" section
+    # Other/uncategorized
     other = sections.get("other", [])
     if other:
         all_slides.append(SlideContent(
             slide_type="section",
-            title=f"UNCATEGORIZED\n{len(other)} variants",
-            layout_index=LAYOUT_SECTION,
+            title=f"UNCATEGORIZED\n{len(other)} slides",
+            layout_index=LAYOUT_SECTION_ALT,
         ))
         for i, result in enumerate(other):
-            all_slides.append(_label_slide("other", i, len(other), result))
             sc = _result_to_slide(result, ctx_results=_ctx_results)
             if sc:
+                sc.title = _stamp_title(sc.title, "other", i, len(other), result)
                 all_slides.append(sc)
 
-    # Build the PPTX
+    # Build PPTX
     output_dir = ctx.paths.pptx_dir
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{ctx.client.client_id}_{ctx.client.month}_SAMPLER.pptx"
@@ -211,23 +169,18 @@ def build_sample_deck(ctx: PipelineContext) -> Path | None:
     try:
         builder = DeckBuilder(str(template))
         builder.build(all_slides, str(output_path))
-        logger.info(
-            "Sample deck built: {path} ({n} slides)",
-            path=output_path.name,
-            n=len(all_slides),
-        )
+        logger.info("Sample deck: {path} ({n} slides)", path=output_path.name, n=len(all_slides))
         print(f"\n  SAMPLER: {output_path}")
-        print(f"  Slides:  {len(all_slides)} ({total} variants + labels + dividers)")
-        print(f"  Review each section, note which option numbers you want to keep.\n")
+        print(f"  Total slides: {len(all_slides)}")
+        print(f"  Real data slides: {total_all}")
+        print(f"\n  Review each slide. The stamp at the top shows:")
+        print(f"    [SECTION N/total] id:slide_id | layout:N (NAME) | type:TYPE")
+        print(f"\n  Mark which slides to KEEP per section.\n")
         return output_path
     except Exception as exc:
         logger.error("Sample deck build failed: {err}", err=exc)
         return None
 
-
-# =============================================================================
-# CLI ENTRY POINT
-# =============================================================================
 
 if __name__ == "__main__":
     import argparse
@@ -235,18 +188,16 @@ if __name__ == "__main__":
 
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-    parser = argparse.ArgumentParser(description="Build a sample/review deck showing all slide variants")
+    parser = argparse.ArgumentParser(description="Build sampler deck with real data + labels")
     parser.add_argument("--month", required=True, help="Month in YYYY.MM format")
     parser.add_argument("--csm", required=True, help="CSM name")
     parser.add_argument("--client", required=True, help="Client ID")
+    parser.add_argument("--results-only", action="store_true",
+                        help="Skip analysis, build from existing results")
     args = parser.parse_args()
 
-    # Run the pipeline up to analysis (no deck generation), then build sampler
     from ars_analysis.pipeline.runner import run_pipeline
     from ars_analysis.pipeline.context import PipelineContext
-
-    print(f"\n  Running analysis for {args.client} ({args.month})...")
-    print(f"  This may take several minutes.\n")
 
     ctx = PipelineContext(
         client_id=args.client,
@@ -254,17 +205,25 @@ if __name__ == "__main__":
         csm=args.csm,
     )
 
-    # Run analysis steps (skip deck generation)
-    run_pipeline(ctx, skip_generate=True)
+    if not args.results_only:
+        print(f"\n  Running analysis for {args.client} ({args.month})...")
+        print(f"  This may take several minutes.\n")
+        run_pipeline(ctx, skip_generate=True)
+    else:
+        print(f"\n  Loading existing results for {args.client} ({args.month})...\n")
+        # Load existing results from completed analysis
+        from ars_analysis.pipeline.steps.load import step_load
+        from ars_analysis.pipeline.steps.analyze import step_analyze
+        step_load(ctx)
+        step_analyze(ctx)
 
     if not ctx.all_slides:
-        print("  ERROR: No analysis results produced. Cannot build sampler.")
+        print("  ERROR: No analysis results. Cannot build sampler.")
         sys.exit(1)
 
-    # Build sampler deck
     result = build_sample_deck(ctx)
     if result:
-        print(f"  Done! Open the PPTX and review each section.")
+        print(f"  Open the PPTX and mark your keepers!")
     else:
-        print("  ERROR: Sample deck build failed.")
+        print("  ERROR: Sampler build failed.")
         sys.exit(1)
