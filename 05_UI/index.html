@@ -355,19 +355,12 @@ footer { text-align: center; padding: 28px; font-size: 11px; color: var(--faint)
         <div class="config-row" style="margin-bottom: 0;">
             <div class="config-field"><div class="label">CSM</div>
                 <select class="sel" id="fCsmSel">
-                    <option value="JamesG">James Gilmore</option>
-                    <option value="Jordan">Jordan</option>
-                    <option value="Aaron">Aaron</option>
-                    <option value="Gregg">Gregg</option>
-                    <option value="Dan">Dan</option>
-                    <option value="Max">Max</option>
+                    <option value="">Loading...</option>
                 </select>
             </div>
             <div class="config-field"><div class="label">Period</div>
                 <select class="sel" id="fMonthSel">
-                    <option value="2026.03">2026.03</option>
-                    <option value="2026.02">2026.02</option>
-                    <option value="2026.01">2026.01</option>
+                    <option value="">Loading...</option>
                 </select>
             </div>
             <div class="config-field"><div class="label">Client ID (blank = all)</div>
@@ -428,30 +421,17 @@ footer { text-align: center; padding: 28px; font-size: 11px; color: var(--faint)
         <div class="config-row" style="margin-bottom: 0;">
             <div class="config-field"><div class="label">CSM</div>
                 <select class="sel" id="gCsmSel">
-                    <option value="JamesG">James Gilmore</option>
-                    <option value="Jordan">Jordan</option>
-                    <option value="Aaron">Aaron</option>
-                    <option value="Gregg">Gregg</option>
-                    <option value="Dan">Dan</option>
-                    <option value="Max">Max</option>
+                    <option value="">Loading...</option>
                 </select>
             </div>
             <div class="config-field"><div class="label">Period</div>
                 <select class="sel" id="gMonthSel">
-                    <option value="2026.03">2026.03</option>
-                    <option value="2026.02">2026.02</option>
-                    <option value="2026.01">2026.01</option>
+                    <option value="">Loading...</option>
                 </select>
             </div>
             <div class="config-field"><div class="label">Client</div>
                 <select class="sel" id="gClientSel" onchange="updateGenClientFromAPI()">
-                    <option value="">Select a client...</option>
-                    <option value="1200">1200 — Guardians Credit Union</option>
-                    <option value="1217">1217 — Pioneer Federal Credit Union</option>
-                    <option value="1453">1453 — Connex Credit Union</option>
-                    <option value="1673">1673 — Neighborhood Credit Union</option>
-                    <option value="1776">1776 — CoastHills Credit Union</option>
-                    <option value="1780">1780 — USF Federal Credit Union</option>
+                    <option value="">Loading...</option>
                 </select>
             </div>
         </div>
@@ -769,52 +749,77 @@ async function loadClients() {
 }
 
 async function loadCSMs() {
-    const sel = document.getElementById('gCsmSel');
-    if (!sel) return;
-
-    // Always set defaults first so dropdowns are never empty
-    const defaults = ['James Gilmore', 'Jordan', 'Aaron', 'Gregg', 'Dan', 'Max'];
-    sel.innerHTML = defaults.map(n => `<option value="${n}">${n}</option>`).join('');
-
+    // Populate BOTH Format and Generate CSM dropdowns from API
+    const selectors = ['gCsmSel', 'fCsmSel'];
     try {
         const resp = await fetch('/api/csms');
         if (!resp.ok) throw '';
         const data = await resp.json();
         if (data.length > 0) {
-            sel.innerHTML = '';
-            data.forEach(name => {
-                const opt = document.createElement('option');
-                opt.value = name;
-                opt.textContent = name;
-                sel.appendChild(opt);
+            selectors.forEach(id => {
+                const sel = document.getElementById(id);
+                if (!sel) return;
+                sel.innerHTML = '';
+                data.forEach(name => {
+                    const opt = document.createElement('option');
+                    opt.value = name;
+                    opt.textContent = name;
+                    sel.appendChild(opt);
+                });
             });
         }
-    } catch(e) {}
+    } catch(e) {
+        // If API fails, show error in dropdowns
+        selectors.forEach(id => {
+            const sel = document.getElementById(id);
+            if (sel) sel.innerHTML = '<option value="">API unavailable</option>';
+        });
+    }
 }
 
 async function loadMonths() {
-    const sel = document.getElementById('gMonthSel');
-    if (!sel) return;
-
-    // Always set current month as default
     const now = new Date();
     const curMonth = `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}`;
-    sel.innerHTML = `<option value="${curMonth}">${curMonth}</option>`;
 
-    try {
-        const resp = await fetch('/api/months');
-        if (!resp.ok) throw '';
-        const data = await resp.json();
-        if (data.length > 0) {
-            sel.innerHTML = '';
-            data.forEach(m => {
-                const opt = document.createElement('option');
-                opt.value = m;
-                opt.textContent = m;
-                sel.appendChild(opt);
-            });
-        }
-    } catch(e) {}
+    // Format page: scan raw CSM source folders (all available data dumps)
+    const fSel = document.getElementById('fMonthSel');
+    if (fSel) {
+        fSel.innerHTML = `<option value="${curMonth}">${curMonth}</option>`;
+        try {
+            const resp = await fetch('/api/months?source=raw');
+            if (!resp.ok) throw '';
+            const data = await resp.json();
+            if (data.length > 0) {
+                fSel.innerHTML = '';
+                data.forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m;
+                    opt.textContent = m;
+                    fSel.appendChild(opt);
+                });
+            }
+        } catch(e) {}
+    }
+
+    // Generate page: scan all sources (raw + formatted)
+    const gSel = document.getElementById('gMonthSel');
+    if (gSel) {
+        gSel.innerHTML = `<option value="${curMonth}">${curMonth}</option>`;
+        try {
+            const resp = await fetch('/api/months?source=all');
+            if (!resp.ok) throw '';
+            const data = await resp.json();
+            if (data.length > 0) {
+                gSel.innerHTML = '';
+                data.forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m;
+                    opt.textContent = m;
+                    gSel.appendChild(opt);
+                });
+            }
+        } catch(e) {}
+    }
 }
 
 function updateGenClientFromAPI() {
@@ -958,7 +963,7 @@ async function runGenReal() {
                     bar.style.width = '100%';
                     if (run.status === 'complete') {
                         st.textContent = 'Complete';
-                        bar.style.background = 'var(--copper)';
+                        bar.style.background = 'var(--accent)';
                         loadDownloads(csm, month, clientId);
                         loadResultsAfterRun(csm, month, clientId);
                         loadDashboardData();
@@ -1161,7 +1166,7 @@ async function runFormat(force = false) {
                     bar.style.width = '100%';
                     if (run.status === 'complete') {
                         st.textContent = 'Formatting Complete';
-                        bar.style.background = 'var(--copper)';
+                        bar.style.background = 'var(--accent)';
                     } else {
                         st.textContent = 'Error -- check log below';
                         bar.style.background = '#EB2A2E';
@@ -1409,8 +1414,7 @@ loadMonths();
 loadClients();
 loadRecent();
 
-// Override the generate button to use real API when available
-const origRunGen = runGen;
+// Override the generate button to use real API
 async function smartRunGen() {
     try {
         const test = await fetch('/api/csms');
@@ -1419,8 +1423,8 @@ async function smartRunGen() {
             return;
         }
     } catch(e) {}
-    // Fallback to mock
-    origRunGen();
+    // No mock fallback -- show real error
+    alert('Cannot connect to the pipeline server. Make sure app.py is running.');
 }
 </script>
 </body>

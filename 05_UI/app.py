@@ -10,6 +10,7 @@ Run: python app.py
 Then open: http://localhost:8000
 """
 
+import asyncio
 import json
 import subprocess
 import sys
@@ -29,13 +30,19 @@ app = FastAPI(title="Velocity Report Pipeline")
 
 # ─── CONFIG ───────────────────────────────────────────────────────────
 
-# Paths (Windows M: drive)
+# Resolve ARS base path
 if sys.platform == "win32":
     ARS_BASE = Path(r"M:\ARS")
 else:
     ARS_BASE = Path("/Volumes/M/ARS")  # Mac fallback for dev
 
+# Fallback: if neither M: drive path exists, use the script's parent directory
+# (handles local dev on Mac without M: drive mounted)
+if not ARS_BASE.exists():
+    ARS_BASE = Path(__file__).resolve().parent.parent
+
 CONFIG_PATH = ARS_BASE / "03_Config" / "clients_config.json"
+ARS_CONFIG_PATH = ARS_BASE / "03_Config" / "ars_config.json"
 FORMATTING_BASE = ARS_BASE / "00_Formatting"
 ANALYSIS_BASE = ARS_BASE / "01_Analysis"
 PRESENTATIONS_BASE = ARS_BASE / "02_Presentations"
@@ -46,7 +53,15 @@ COMPLETED_ANALYSIS = ANALYSIS_BASE / "01_Completed_Analysis"
 # In-memory run tracking
 runs = {}
 
+
 # ─── HELPERS ──────────────────────────────────────────────────────────
+
+def load_ars_config():
+    """Load ars_config.json."""
+    if ARS_CONFIG_PATH.exists():
+        return json.loads(ARS_CONFIG_PATH.read_text(encoding="utf-8"))
+    return {}
+
 
 def load_clients_config():
     """Load clients_config.json."""
@@ -55,11 +70,19 @@ def load_clients_config():
     return {}
 
 
+def get_csm_list():
+    """Get CSM names from ars_config.json sources (not hardcoded)."""
+    cfg = load_ars_config()
+    sources = cfg.get("csm_sources", {}).get("sources", {})
+    if sources:
+        return sorted(sources.keys())
+    return []
+
+
 def find_formatted_odd(csm, month, client_id):
     """Find the formatted ODD file for a client."""
     client_dir = READY_FOR_ANALYSIS / csm / month / client_id
     if not client_dir.exists():
-        # Fuzzy CSM match
         if READY_FOR_ANALYSIS.exists():
             for d in READY_FOR_ANALYSIS.iterdir():
                 if d.is_dir() and d.name.lower().startswith(csm.lower()):
@@ -154,7 +177,6 @@ PRODUCTS = {
     },
 }
 
-CSM_LIST = ["JamesG", "Jordan", "Aaron", "Gregg", "Dan", "Max"]
 
 # ─── API ROUTES ───────────────────────────────────────────────────────
 
@@ -169,7 +191,8 @@ async def index():
 
 @app.get("/api/csms")
 async def get_csms():
-    return CSM_LIST
+    """Return CSM names from ars_config.json (dynamic, not hardcoded)."""
+    return get_csm_list()
 
 
 @app.get("/api/clients")
@@ -202,7 +225,7 @@ async def get_products():
 
 @app.get("/api/months")
 async def get_months(csm: str = "", source: str = "all"):
-    """Return available months.
+    """Return available months by scanning actual directories.
 
     source=raw: scan CSM source folders (raw data dumps -- for formatting step)
     source=formatted: scan 02-Data-Ready for Analysis (already formatted -- for analysis step)
@@ -220,18 +243,16 @@ async def get_months(csm: str = "", source: str = "all"):
 
     # Scan raw CSM source folders (where ZIPs come from)
     if source in ("all", "raw"):
-        config_path = ARS_BASE / "03_Config" / "ars_config.json"
-        if config_path.exists():
-            ars_cfg = json.loads(config_path.read_text(encoding="utf-8"))
-            csm_sources = ars_cfg.get("csm_sources", {}).get("sources", {})
-            for csm_name, csm_path in csm_sources.items():
-                if csm and not csm_name.lower().startswith(csm.lower()):
-                    continue
-                src = Path(csm_path)
-                if src.exists():
-                    for month_dir in src.iterdir():
-                        if month_dir.is_dir() and "." in month_dir.name:
-                            months.add(month_dir.name)
+        cfg = load_ars_config()
+        csm_sources = cfg.get("csm_sources", {}).get("sources", {})
+        for csm_name, csm_path in csm_sources.items():
+            if csm and not csm_name.lower().startswith(csm.lower()):
+                continue
+            src = Path(csm_path)
+            if src.exists():
+                for month_dir in src.iterdir():
+                    if month_dir.is_dir() and "." in month_dir.name:
+                        months.add(month_dir.name)
 
     return sorted(months, reverse=True) or [datetime.now().strftime("%Y.%m")]
 
@@ -256,7 +277,6 @@ async def get_stats():
     config = load_clients_config()
     recent = get_recent_runs()
 
-    # Count unique clients with completed outputs
     completed_clients = set()
     if COMPLETED_ANALYSIS.exists():
         for csm_dir in COMPLETED_ANALYSIS.iterdir():
@@ -267,7 +287,6 @@ async def get_stats():
                             if client_dir.is_dir():
                                 completed_clients.add(client_dir.name)
 
-    # Count PPTX files generated
     pptx_count = 0
     if PRESENTATIONS_BASE.exists():
         for f in PRESENTATIONS_BASE.rglob("*.pptx"):
@@ -356,7 +375,6 @@ async def start_run(
     """Start a full pipeline run: format (if needed) + analysis + PPTX."""
     run_id = f"{client_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:4]}"
 
-    # Find both run scripts
     formatting_run = ARS_BASE / "00_Formatting" / "run.py"
     analysis_run = ARS_BASE / "01_Analysis" / "run.py"
 
@@ -377,7 +395,6 @@ async def start_run(
 
     def _run():
         try:
-            # Step 1: Check if formatted file exists, if not run formatting
             odd_file = find_formatted_odd(csm, month, client_id)
             if not odd_file and formatting_run.exists():
                 runs[run_id]["current_step"] = "Step 1: Formatting ODD file..."
@@ -414,7 +431,6 @@ async def start_run(
                 runs[run_id]["log"].append(f"Check: {READY_FOR_ANALYSIS / csm / month / client_id}")
                 return
 
-            # Step 2: Run analysis
             runs[run_id]["current_step"] = "Step 2: Running analysis..."
             runs[run_id]["log"].append("=" * 60)
             runs[run_id]["log"].append("  STEP 2: Running ARS Analysis")
@@ -433,7 +449,6 @@ async def start_run(
                 if run_id in runs:
                     runs[run_id]["log"].append(line)
                     runs[run_id]["current_step"] = line.strip()
-                    # Estimate progress from log output
                     log_len = len(runs[run_id]["log"])
                     runs[run_id]["progress"] = min(95, log_len * 2)
 
@@ -474,13 +489,11 @@ async def stream_run(run_id: str):
             if not run:
                 break
 
-            # Send new log lines
             new_lines = run["log"][last_idx:]
             for line in new_lines:
                 yield f"data: {json.dumps({'type': 'log', 'message': line})}\n\n"
             last_idx = len(run["log"])
 
-            # Send progress
             yield f"data: {json.dumps({'type': 'progress', 'value': run['progress'], 'step': run['current_step']})}\n\n"
 
             if run["status"] in ("complete", "error"):
@@ -489,7 +502,6 @@ async def stream_run(run_id: str):
 
             await asyncio.sleep(0.5)
 
-    import asyncio
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
@@ -510,7 +522,6 @@ async def list_outputs(csm: str, month: str, client_id: str):
     """List output files for a completed run."""
     files = []
 
-    # Check completed analysis (fuzzy CSM match)
     analysis_dir = _resolve_csm_dir(COMPLETED_ANALYSIS, csm) / month / client_id
     if analysis_dir.exists():
         for f in analysis_dir.iterdir():
@@ -523,7 +534,6 @@ async def list_outputs(csm: str, month: str, client_id: str):
                     "category": "analysis",
                 })
 
-    # Check presentations (fuzzy CSM match)
     pptx_dir = _resolve_csm_dir(PRESENTATIONS_BASE, csm) / month / client_id
     if pptx_dir.exists():
         for f in pptx_dir.iterdir():
@@ -536,7 +546,6 @@ async def list_outputs(csm: str, month: str, client_id: str):
                     "category": "presentation",
                 })
 
-    # Check for chart images
     charts_dir = analysis_dir / "charts" if analysis_dir.exists() else None
     if charts_dir and charts_dir.exists():
         for f in charts_dir.iterdir():
@@ -558,7 +567,6 @@ async def download_file(path: str):
     file_path = Path(path)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
-    # Security: only allow files under ARS_BASE
     try:
         file_path.resolve().relative_to(ARS_BASE.resolve())
     except ValueError:
@@ -569,7 +577,6 @@ async def download_file(path: str):
 if __name__ == "__main__":
     import socket
 
-    # Check for port conflict
     port = 8000
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         if s.connect_ex(("127.0.0.1", port)) == 0:
@@ -579,12 +586,12 @@ if __name__ == "__main__":
             print(f"    taskkill /PID <pid> /F")
             sys.exit(1)
 
-    # Verify paths
     print()
     print("=" * 60)
     print("  Velocity Report Pipeline")
     print(f"  ARS Base:    {ARS_BASE} {'[OK]' if ARS_BASE.exists() else '[NOT FOUND]'}")
     print(f"  Config:      {CONFIG_PATH} {'[OK]' if CONFIG_PATH.exists() else '[NOT FOUND]'}")
+    print(f"  CSMs:        {get_csm_list() or '[none configured]'}")
     print(f"  index.html:  {Path(__file__).parent / 'index.html'} {'[OK]' if (Path(__file__).parent / 'index.html').exists() else '[NOT FOUND]'}")
     print(f"  http://localhost:{port}")
     print("=" * 60)
