@@ -56,8 +56,13 @@ def _stamp_title(original_title: str, section: str, idx: int, total: int, result
     return f"{stamp}\n{original_title}"
 
 
-def build_sample_deck(ctx: PipelineContext) -> Path | None:
-    """Build a sampler PPTX with real data -- every slide stamped with metadata."""
+def build_sample_deck(ctx: PipelineContext, section_filter: str | None = None) -> Path | None:
+    """Build a sampler PPTX with real data -- every slide stamped with metadata.
+
+    Args:
+        ctx: PipelineContext with analysis results.
+        section_filter: If set, only include this section (e.g., 'mailer', 'dctr').
+    """
     if not ctx.all_slides:
         logger.warning("No slides to build sample deck from")
         return None
@@ -116,8 +121,10 @@ def build_sample_deck(ctx: PipelineContext) -> Path | None:
         layout_index=LAYOUT_SECTION,
     ))
 
-    # Each section
+    # Each section (filtered if --section flag used)
     for section_key in SECTION_ORDER:
+        if section_filter and section_key != section_filter.lower():
+            continue
         results = sections.get(section_key, [])
         if not results:
             continue
@@ -147,24 +154,26 @@ def build_sample_deck(ctx: PipelineContext) -> Path | None:
                     layout_index=LAYOUT_SECTION,
                 ))
 
-    # Other/uncategorized
-    other = sections.get("other", [])
-    if other:
-        all_slides.append(SlideContent(
-            slide_type="section",
-            title=f"UNCATEGORIZED\n{len(other)} slides",
-            layout_index=LAYOUT_SECTION_ALT,
-        ))
-        for i, result in enumerate(other):
-            sc = _result_to_slide(result, ctx_results=_ctx_results)
-            if sc:
-                sc.title = _stamp_title(sc.title, "other", i, len(other), result)
-                all_slides.append(sc)
+    # Other/uncategorized (skip if filtering to a specific section)
+    if not section_filter:
+        other = sections.get("other", [])
+        if other:
+            all_slides.append(SlideContent(
+                slide_type="section",
+                title=f"UNCATEGORIZED\n{len(other)} slides",
+                layout_index=LAYOUT_SECTION_ALT,
+            ))
+            for i, result in enumerate(other):
+                sc = _result_to_slide(result, ctx_results=_ctx_results)
+                if sc:
+                    sc.title = _stamp_title(sc.title, "other", i, len(other), result)
+                    all_slides.append(sc)
 
     # Build PPTX
     output_dir = ctx.paths.pptx_dir
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"{ctx.client.client_id}_{ctx.client.month}_SAMPLER.pptx"
+    suffix = f"_{section_filter.upper()}" if section_filter else ""
+    output_path = output_dir / f"{ctx.client.client_id}_{ctx.client.month}_SAMPLER{suffix}.pptx"
 
     try:
         builder = DeckBuilder(str(template))
