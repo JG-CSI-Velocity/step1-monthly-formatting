@@ -202,6 +202,17 @@ def main():
         17: "TITLE_RPE", 18: "TITLE_ARS", 19: "TITLE_ICS",
     }
 
+    # Layout options to show per chart -- each chart rendered in these layouts
+    PREVIEW_LAYOUTS = [
+        (LAYOUT_CUSTOM, "CUSTOM (8)", "screenshot"),
+        (2, "CONTENT (2)", "screenshot"),        # LAYOUT_CONTENT
+        (9, "TWO_CONTENT (9)", "screenshot"),     # LAYOUT_TWO_CONTENT
+        (16, "WIDE_TITLE (16)", "screenshot"),    # LAYOUT_WIDE_TITLE
+    ]
+
+    # Also check SLIDE_LAYOUT_MAP for any chart-specific overrides
+    from ars_analysis.output.deck_builder import SLIDE_LAYOUT_MAP
+
     # Build per-section PPTXs
     sections_to_build = [args.section.lower()] if args.section else list(sections.keys())
 
@@ -218,30 +229,60 @@ def main():
         # Title slide
         slides.append(SlideContent(
             slide_type="section",
-            title=f"SAMPLER: {label}\n{client_id} - {client_name} | {month}\n{len(sec_charts)} slides",
+            title=(
+                f"SAMPLER: {label}\n"
+                f"{client_id} - {client_name} | {month}\n"
+                f"{len(sec_charts)} charts x {len(PREVIEW_LAYOUTS)} layouts = {len(sec_charts) * len(PREVIEW_LAYOUTS)} slides\n\n"
+                f"Each chart shown in {len(PREVIEW_LAYOUTS)} layout options.\n"
+                f"Note the layout name on each slide and pick your favorite."
+            ),
             layout_index=LAYOUT_SECTION_ALT,
         ))
 
-        # Each chart as a slide with metadata stamp
+        # Each chart shown in multiple layouts
         for i, chart_path in enumerate(sec_charts):
             chart_name = chart_path.stem
-            stamp = f"[{sec_key.upper()} {i+1}/{len(sec_charts)}] file:{chart_name} | layout:8 (CUSTOM)"
 
+            # Check if SLIDE_LAYOUT_MAP has a specific mapping for this chart
+            mapped = SLIDE_LAYOUT_MAP.get(chart_name.split('_')[0], None)
+            mapped_note = f" [MAPPED: layout {mapped[0]} ({_LAYOUT_NAMES.get(mapped[0], '?')})]" if mapped else ""
+
+            # Divider for this chart
             slides.append(SlideContent(
-                slide_type="screenshot",
-                title=f"{stamp}\n{chart_name.replace('_', ' ')}",
-                images=[str(chart_path)],
-                layout_index=LAYOUT_CUSTOM,
+                slide_type="section",
+                title=(
+                    f"CHART {i+1}/{len(sec_charts)}: {chart_name}\n"
+                    f"Section: {sec_key.upper()}{mapped_note}\n\n"
+                    f"The next {len(PREVIEW_LAYOUTS)} slides show this chart in different layouts.\n"
+                    f"Pick which layout works best."
+                ),
+                layout_index=LAYOUT_SECTION,
             ))
+
+            # Same chart in each layout option
+            for layout_idx, layout_name, slide_type in PREVIEW_LAYOUTS:
+                stamp = (
+                    f"[{sec_key.upper()} {i+1}/{len(sec_charts)}] "
+                    f"LAYOUT: {layout_name} | "
+                    f"file: {chart_name}"
+                )
+
+                slides.append(SlideContent(
+                    slide_type=slide_type,
+                    title=f"{stamp}\n{chart_name.replace('_', ' ')}",
+                    images=[str(chart_path)],
+                    layout_index=layout_idx,
+                ))
 
         # Build PPTX
         suffix = sec_key.upper()
         out_path = pptx_dir / f"{client_id}_{month}_SAMPLER_{suffix}.pptx"
 
+        total_slides = len(sec_charts) * (len(PREVIEW_LAYOUTS) + 1) + 1  # charts * (layouts + divider) + title
         try:
             builder = DeckBuilder(str(template))
             builder.build(slides, str(out_path))
-            print(f"  {sec_key:15s}  {len(sec_charts):3d} slides  ->  {out_path.name}")
+            print(f"  {sec_key:15s}  {len(sec_charts):3d} charts  {total_slides:4d} slides  ->  {out_path.name}")
         except Exception as exc:
             print(f"  {sec_key:15s}  ERROR: {exc}")
 
