@@ -1,7 +1,7 @@
-r"""Run the Slide Sampler -- generates a review PPTX with real data + metadata stamps.
+r"""Run the Slide Sampler -- generates per-section review PPTXs from existing analysis.
 
-Modeled on run.py -- uses the same path resolution, context creation, and analysis
-pipeline. Builds a SAMPLER PPTX instead of the production deck.
+Does NOT re-run analysis. Reads charts from a completed analysis run and builds
+one small PPTX per section, each slide stamped with metadata.
 
 Usage:
     python run_sampler.py --month 2026.04 --csm JamesG --client 1615
@@ -10,12 +10,11 @@ Usage:
 """
 
 import argparse
-import glob
 import os
 import sys
-from datetime import datetime
 from pathlib import Path
 import types
+import json
 
 # Same path setup as run.py
 _scripts_dir = Path(__file__).parent / "00-Scripts"
@@ -30,37 +29,40 @@ _config_dir = Path(__file__).resolve().parent.parent / "03_Config"
 sys.path.insert(0, str(_config_dir))
 
 
-def _find_odd_file(csm, month, client_id):
-    """Find the formatted ODD file for a client (same logic as run.py)."""
+def _find_analysis_dir(csm, month, client_id):
+    """Find the completed analysis directory with charts."""
     if os.name == "nt":
-        base = Path(r"M:\ARS\00_Formatting\02-Data-Ready for Analysis")
+        base = Path(r"M:\ARS\01_Analysis\01_Completed_Analysis")
     else:
-        base = Path("/Volumes/M/ARS/00_Formatting/02-Data-Ready for Analysis")
+        base = Path("/Volumes/M/ARS/01_Analysis/01_Completed_Analysis")
 
-    # Try exact path
-    client_dir = base / csm / month / client_id
-    if client_dir.exists():
-        xlsx = list(client_dir.glob("*.xlsx"))
-        if xlsx:
-            return xlsx[0]
+    direct = base / csm / month / client_id
+    if direct.exists():
+        return direct
 
     # Fuzzy CSM match
     if base.exists():
         for d in base.iterdir():
             if d.is_dir() and d.name.lower().startswith(csm.lower()):
-                client_dir = d / month / client_id
-                if client_dir.exists():
-                    xlsx = list(client_dir.glob("*.xlsx"))
-                    if xlsx:
-                        return xlsx[0]
+                candidate = d / month / client_id
+                if candidate.exists():
+                    return candidate
     return None
+
+
+def _find_pptx_dir(csm, month, client_id):
+    """Get the presentations output directory."""
+    if os.name == "nt":
+        base = Path(r"M:\ARS\02_Presentations")
+    else:
+        base = Path("/Volumes/M/ARS/02_Presentations")
+    return base / csm / month / client_id
 
 
 def _find_config():
     """Find clients_config.json."""
     candidates = [
         Path(r"M:\ARS\03_Config\clients_config.json"),
-        Path(r"M:\ARS\Config\clients_config.json"),
         Path(__file__).parent.parent / "03_Config" / "clients_config.json",
     ]
     for c in candidates:
@@ -72,13 +74,24 @@ def _find_config():
     return None
 
 
+def _load_client_name(client_id, config_path):
+    """Get client name from config."""
+    if not config_path:
+        return f"Client {client_id}"
+    try:
+        cfg = json.loads(Path(config_path).read_text(encoding="utf-8"))
+        return cfg.get(client_id, {}).get("ClientName", f"Client {client_id}")
+    except Exception:
+        return f"Client {client_id}"
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Build slide sampler with real data")
+    parser = argparse.ArgumentParser(description="Build per-section sampler PPTXs from existing analysis")
     parser.add_argument("--month", type=str, default=None, help="Month in YYYY.MM format")
     parser.add_argument("--csm", type=str, default=None, help="CSM name")
     parser.add_argument("--client", type=str, default=None, help="Client ID")
     parser.add_argument("--section", type=str, default=None,
-                        help="Only include this section (e.g., mailer, dctr, rege)")
+                        help="Only build this section (e.g., mailer, dctr, rege)")
     parser.add_argument("--list-sections", action="store_true",
                         help="List available sections and exit")
     args = parser.parse_args()
@@ -98,104 +111,147 @@ def main():
     month = args.month
     csm = args.csm
     client_id = args.client
+    config_path = _find_config()
+    client_name = _load_client_name(client_id, config_path)
 
-    # Find the formatted ODD file
-    odd_path = _find_odd_file(csm, month, client_id)
-    if not odd_path:
-        print(f"\n  ERROR: No formatted ODD file found for {client_id} in {month}")
-        print(f"  Run formatting first:")
-        print(f"    cd M:\\ARS\\00_Formatting")
+    # Find completed analysis
+    analysis_dir = _find_analysis_dir(csm, month, client_id)
+    if not analysis_dir:
+        print(f"\n  ERROR: No completed analysis found for {client_id} in {month}")
+        print(f"  Run analysis first:")
+        print(f"    cd M:\\ARS\\01_Analysis")
         print(f"    python run.py --month {month} --csm {csm} --client {client_id}")
         sys.exit(1)
 
-    # Extract client name from filename
-    parts = odd_path.stem.split("-")
-    client_name = "-".join(parts[3:-1]).strip() if len(parts) >= 4 else f"Client {client_id}"
+    # Find charts
+    chart_dir = analysis_dir / "charts"
+    if not chart_dir.exists():
+        chart_dir = analysis_dir  # charts might be in the root
 
-    # Output directories
-    if os.name == "nt":
-        analysis_base = Path(r"M:\ARS\01_Analysis\01_Completed_Analysis")
-        pptx_base = Path(r"M:\ARS\02_Presentations")
-    else:
-        analysis_base = Path("/Volumes/M/ARS/01_Analysis/01_Completed_Analysis")
-        pptx_base = Path("/Volumes/M/ARS/02_Presentations")
+    charts = sorted(chart_dir.glob("*.png"))
+    if not charts:
+        # Try finding PNGs anywhere in the analysis dir
+        charts = sorted(analysis_dir.rglob("*.png"))
 
-    output_dir = analysis_base / csm / month / client_id
-    pptx_dir = pptx_base / csm / month / client_id
-    output_dir.mkdir(parents=True, exist_ok=True)
+    if not charts:
+        print(f"\n  ERROR: No chart images found in {analysis_dir}")
+        print(f"  The analysis may not have generated charts.")
+        sys.exit(1)
+
+    pptx_dir = _find_pptx_dir(csm, month, client_id)
     pptx_dir.mkdir(parents=True, exist_ok=True)
 
-    config_path = _find_config()
-
     print()
     print("=" * 60)
-    print("  SLIDE SAMPLER")
+    print("  SLIDE SAMPLER (from existing analysis)")
     print("=" * 60)
-    print(f"  Client:  {client_id} - {client_name}")
-    print(f"  CSM:     {csm}")
-    print(f"  Month:   {month}")
-    print(f"  ODD:     {odd_path}")
-    print(f"  Section: {args.section or 'ALL'}")
+    print(f"  Client:    {client_id} - {client_name}")
+    print(f"  CSM:       {csm}")
+    print(f"  Month:     {month}")
+    print(f"  Charts:    {len(charts)} found in {analysis_dir}")
+    print(f"  Section:   {args.section or 'ALL (one PPTX per section)'}")
+    print(f"  Output:    {pptx_dir}")
     print("=" * 60)
     print()
 
-    # Build context (same as run.py)
-    from shared.context import PipelineContext
-
-    ctx = PipelineContext(
-        client_id=client_id,
-        client_name=client_name,
-        csm=csm,
-        output_dir=output_dir,
-        input_files={"oddd": str(odd_path)},
-        client_config={
-            "config_path": config_path,
-            "client_id": client_id,
-        },
+    # Group charts by section prefix
+    from ars_analysis.output.deck_builder import (
+        DeckBuilder, SlideContent, _SECTION_LABELS, SECTION_ORDER,
+        LAYOUT_SECTION, LAYOUT_SECTION_ALT, LAYOUT_CUSTOM,
+        _FALLBACK_TEMPLATE,
     )
 
-    # Redirect pptx output
-    ctx.pptx_dir = pptx_dir
-
-    def on_progress(msg):
-        print(f"  {msg}")
-
-    ctx.progress_callback = on_progress
-
-    # Run analysis
-    print("  Running analysis...")
-    print()
-
-    from runner import run_ars
-    run_ars(ctx)
-
-    if not ctx.all_slides:
-        print("  ERROR: No analysis results. Cannot build sampler.")
+    # Find template
+    template = _FALLBACK_TEMPLATE
+    if not template.exists():
+        print(f"  ERROR: Template not found at {template}")
         sys.exit(1)
 
-    print()
-    print(f"  Analysis complete: {len(ctx.all_slides)} slide results")
-    print(f"  Building sampler PPTX...")
-    print()
+    # Map chart filenames to sections
+    # Chart names are typically: A7.4_dctr_trajectory.png, A9.1_attrition_overview.png, etc.
+    _PREFIX_TO_SECTION = {
+        "A1": "overview", "A3": "overview",
+        "DCTR": "dctr", "A7": "dctr",
+        "A8": "rege",
+        "A9": "attrition",
+        "A11": "value",
+        "A12": "mailer", "A13": "mailer", "A14": "mailer", "A15": "mailer",
+        "A16": "mailer", "A17": "mailer",
+        "A18": "insights", "A19": "insights", "A20": "insights",
+        "S": "insights",
+    }
 
-    # Build sampler
-    from ars_analysis.output.sample_deck_builder import build_sample_deck
-    result = build_sample_deck(ctx, section_filter=args.section)
+    def _chart_section(filename):
+        name = filename.stem.upper()
+        for prefix, section in sorted(_PREFIX_TO_SECTION.items(), key=lambda x: -len(x[0])):
+            if name.startswith(prefix):
+                return section
+        return "other"
 
-    if result:
-        print()
-        print("=" * 60)
-        print(f"  DONE!")
-        print(f"  Open: {result}")
-        print()
-        print(f"  Each slide has a stamp at the top:")
-        print(f"    [SECTION N/total] id:slide_id | layout:N (NAME) | type:TYPE")
-        print()
-        print(f"  Mark which slides to KEEP per section.")
-        print("=" * 60)
-    else:
-        print("  ERROR: Sampler build failed.")
-        sys.exit(1)
+    sections = {}
+    for chart in charts:
+        sec = _chart_section(chart)
+        sections.setdefault(sec, []).append(chart)
+
+    # Layout name lookup
+    _LAYOUT_NAMES = {
+        0: "TITLE_DARK", 1: "TITLE", 2: "CONTENT", 3: "CONTENT_ALT",
+        4: "SECTION", 5: "SECTION_ALT", 6: "SECTION_GRAY", 7: "TITLE_VARIANT",
+        8: "CUSTOM", 9: "TWO_CONTENT", 10: "COMPARISON", 11: "BLANK",
+        12: "BULLETS", 13: "PICTURE", 16: "WIDE_TITLE",
+        17: "TITLE_RPE", 18: "TITLE_ARS", 19: "TITLE_ICS",
+    }
+
+    # Build per-section PPTXs
+    sections_to_build = [args.section.lower()] if args.section else list(sections.keys())
+
+    for sec_key in sections_to_build:
+        sec_charts = sections.get(sec_key, [])
+        if not sec_charts:
+            print(f"  {sec_key}: no charts found, skipping")
+            continue
+
+        label = _SECTION_LABELS.get(sec_key, sec_key.title())
+
+        slides = []
+
+        # Title slide
+        slides.append(SlideContent(
+            slide_type="section",
+            title=f"SAMPLER: {label}\n{client_id} - {client_name} | {month}\n{len(sec_charts)} slides",
+            layout_index=LAYOUT_SECTION_ALT,
+        ))
+
+        # Each chart as a slide with metadata stamp
+        for i, chart_path in enumerate(sec_charts):
+            chart_name = chart_path.stem
+            stamp = f"[{sec_key.upper()} {i+1}/{len(sec_charts)}] file:{chart_name} | layout:8 (CUSTOM)"
+
+            slides.append(SlideContent(
+                slide_type="screenshot",
+                title=f"{stamp}\n{chart_name.replace('_', ' ')}",
+                images=[str(chart_path)],
+                layout_index=LAYOUT_CUSTOM,
+            ))
+
+        # Build PPTX
+        suffix = sec_key.upper()
+        out_path = pptx_dir / f"{client_id}_{month}_SAMPLER_{suffix}.pptx"
+
+        try:
+            builder = DeckBuilder(str(template))
+            builder.build(slides, str(out_path))
+            print(f"  {sec_key:15s}  {len(sec_charts):3d} slides  ->  {out_path.name}")
+        except Exception as exc:
+            print(f"  {sec_key:15s}  ERROR: {exc}")
+
+    print()
+    print("=" * 60)
+    print(f"  DONE! Sampler files in: {pptx_dir}")
+    print()
+    print(f"  Each slide has a stamp: [SECTION N/total] file:chart_name | layout:N")
+    print(f"  Mark which slides to KEEP per section.")
+    print("=" * 60)
 
 
 if __name__ == "__main__":
