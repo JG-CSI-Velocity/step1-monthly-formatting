@@ -98,10 +98,14 @@ def main():
 
     if args.list_sections:
         from ars_analysis.output.deck_builder import _SECTION_LABELS, SECTION_ORDER
-        print("\nAvailable sections:")
+        from ars_analysis.analytics.txn_wrapper import TXN_SECTIONS
+        print("\nARS sections:")
         for key in SECTION_ORDER:
             label = _SECTION_LABELS.get(key, key)
             print(f"  {key:15s}  {label}")
+        print("\nTXN sections:")
+        for key, meta in sorted(TXN_SECTIONS.items(), key=lambda x: x[1].get("order", 999)):
+            print(f"  txn.{key:20s}  {meta['display']}")
         print()
         return
 
@@ -154,12 +158,13 @@ def main():
     print("=" * 60)
     print()
 
-    # Group charts by section prefix
+    # Group charts by section
     from ars_analysis.output.deck_builder import (
         DeckBuilder, SlideContent, _SECTION_LABELS, SECTION_ORDER,
         LAYOUT_SECTION, LAYOUT_SECTION_ALT, LAYOUT_CUSTOM,
         _FALLBACK_TEMPLATE,
     )
+    from ars_analysis.analytics.txn_wrapper import TXN_SECTIONS
 
     # Find template
     template = _FALLBACK_TEMPLATE
@@ -167,8 +172,7 @@ def main():
         print(f"  ERROR: Template not found at {template}")
         sys.exit(1)
 
-    # Map chart filenames to sections
-    # Chart names are typically: A7.4_dctr_trajectory.png, A9.1_attrition_overview.png, etc.
+    # --- ARS chart prefix mapping ---
     _PREFIX_TO_SECTION = {
         "A1": "overview", "A3": "overview",
         "DCTR": "dctr", "A7": "dctr",
@@ -181,12 +185,35 @@ def main():
         "S": "insights",
     }
 
-    def _chart_section(filename):
-        name = filename.stem.upper()
+    # --- TXN section names for prefix matching ---
+    _TXN_SECTION_NAMES = set(TXN_SECTIONS.keys())  # general, merchant, mcc_code, etc.
+
+    def _chart_section(chart_path):
+        name = chart_path.stem
+        name_upper = name.upper()
+
+        # TXN charts: named like general_03_kpi_dashboard_01.png
+        # or stored in subdirs like charts/general/general_03_kpi_01.png
+        # Check if parent dir is a TXN section name
+        if chart_path.parent.name in _TXN_SECTION_NAMES:
+            return f"txn.{chart_path.parent.name}"
+
+        # Check if filename starts with a TXN section name
+        for sec_name in _TXN_SECTION_NAMES:
+            if name.startswith(sec_name + "_") or name.startswith(f"txn_setup_{sec_name}"):
+                return f"txn.{sec_name}"
+
+        # ARS charts: named like A7.4_dctr_trajectory.png
         for prefix, section in sorted(_PREFIX_TO_SECTION.items(), key=lambda x: -len(x[0])):
-            if name.startswith(prefix):
+            if name_upper.startswith(prefix):
                 return section
+
         return "other"
+
+    # Build section labels including TXN
+    _ALL_LABELS = dict(_SECTION_LABELS)
+    for sec_name, meta in TXN_SECTIONS.items():
+        _ALL_LABELS[f"txn.{sec_name}"] = f"TXN: {meta['display']}"
 
     sections = {}
     for chart in charts:
@@ -222,7 +249,7 @@ def main():
             print(f"  {sec_key}: no charts found, skipping")
             continue
 
-        label = _SECTION_LABELS.get(sec_key, sec_key.title())
+        label = _ALL_LABELS.get(sec_key, sec_key.replace("txn.", "TXN: ").title())
 
         slides = []
 
