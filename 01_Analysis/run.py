@@ -318,9 +318,15 @@ def main():
         },
     )
 
-    # Progress callback
+    # Progress callback with elapsed time
+    import time as _time_mod
+    _run_start = _time_mod.time()
+
     def on_progress(msg):
-        print(f"  {msg}")
+        elapsed = _time_mod.time() - _run_start
+        mins = int(elapsed // 60)
+        secs = int(elapsed % 60)
+        print(f"  [{mins:02d}:{secs:02d}] {msg}")
 
     ctx.progress_callback = on_progress
 
@@ -370,10 +376,15 @@ def main():
                         print(f"    PPTX remains at: {pf}")
                         print(f"    Copy it manually to: {dest}")
 
+        _total_elapsed = _time_mod.time() - _run_start
+        _total_mins = int(_total_elapsed // 60)
+        _total_secs = int(_total_elapsed % 60)
+
         print()
         print("=" * 70)
-        print("  STEP 2 COMPLETE")
+        print(f"  STEP 2 COMPLETE -- {_total_mins}m {_total_secs}s")
         print("=" * 70)
+        print(f"    Runtime:        {_total_mins}m {_total_secs}s")
         print(f"    Results:        {len(results)} slides generated")
         print(f"    Analysis:       {output_dir}")
         print(f"    Presentations:  {pptx_dir}")
