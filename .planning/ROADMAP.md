@@ -124,3 +124,14 @@ v1.1 → v2.0: 17 -> 18 (slide refinement is iterative, section by section)
 **Depends on:** Phase 16
 **Requirements:** TBD
 **Plans:** TBD
+
+## Backlog
+
+### Phase 999.1: Overnight Formatting Sweep (BACKLOG)
+
+**Goal:** Background thread in app.py that auto-runs formatting on the 7th, 9th, and 11th of each month at midnight. Processes all CSMs/clients that haven't been formatted yet this month -- skips what's already done. Includes TXN file gathering. Start with a whitelist of CSMs (opt-in) before enabling for everyone.
+**Requirements:** TBD
+**Plans:** TBD
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
