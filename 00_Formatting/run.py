@@ -58,7 +58,7 @@ def load_ars_config():
     return {}
 
 
-def process_csm(csm_name, src_directory, staging_directory, output_directory, log_file=None, client_filter=None, force=False):
+def process_csm(csm_name, src_directory, staging_directory, output_directory, log_file=None, client_filter=None, force=False, clients_config=None):
     """Process ODD files for a single CSM.
 
     1. Copy ZIPs from CSM source to staging (01-Data-Ready for Formatting)
@@ -94,6 +94,13 @@ def process_csm(csm_name, src_directory, staging_directory, output_directory, lo
         # Extract client ID from ZIP filename (e.g., 1200 from 1200_ODDD.zip)
         zip_client = re.match(r'^(\d+)', item)
         zip_client_id = zip_client.group(1) if zip_client else 'unknown'
+
+        # Skip excluded clients
+        if clients_config and clients_config.get(zip_client_id, {}).get("exclude", False):
+            _reason = clients_config[zip_client_id].get("exclude_reason", "excluded")
+            log_message(f"    Skipping {zip_client_id} -- {_reason}", log_file)
+            continue
+
         client_staging = os.path.join(staging_directory, zip_client_id)
 
         # Skip if already extracted (CSV exists in staging) unless --force
@@ -143,6 +150,12 @@ def process_csm(csm_name, src_directory, staging_directory, output_directory, lo
 
     for client_id, csv_file in csv_files:
         try:
+            # Skip excluded clients
+            if clients_config and clients_config.get(client_id, {}).get("exclude", False):
+                _reason = clients_config[client_id].get("exclude_reason", "excluded")
+                log_message(f"    Skipping {client_id} -- {_reason}", log_file)
+                continue
+
             client_path = os.path.join(staging_directory, client_id)
             csv_path = os.path.join(client_path, csv_file)
 
@@ -195,7 +208,7 @@ def process_csm(csm_name, src_directory, staging_directory, output_directory, lo
 
 # ─── EXTRA FILE GATHERING ──────────────────────────────────────────────
 
-def gather_trans_files(src_directory, txn_output_base, csm_name, client_filter=None, log_file=None):
+def gather_trans_files(src_directory, txn_output_base, csm_name, client_filter=None, log_file=None, clients_config=None):
     """Copy transaction files from CSM data dump into TXN Files folder.
 
     Destination: 02-Data-Ready for Analysis/TXN Files/{CSM}/{client_id}/
@@ -223,6 +236,9 @@ def gather_trans_files(src_directory, txn_output_base, csm_name, client_filter=N
             client_match = re.match(r'^(\d+)', f)
             if client_match:
                 cid = client_match.group(1)
+                # Skip excluded clients
+                if clients_config and clients_config.get(cid, {}).get("exclude", False):
+                    continue
                 if client_filter is None or cid == client_filter:
                     trans_files.append((cid, f))
 
@@ -445,12 +461,16 @@ def main():
     total_success = 0
     total_errors = 0
 
-    # Load clients config for extra file gathering
+    # Load clients config (used for exclude checks, deferred/workbook gathering)
     clients_config = {}
-    if args.with_deferred or args.with_workbook:
-        config_path = Path(__file__).resolve().parent.parent / "03_Config" / "clients_config.json"
-        if config_path.exists():
-            clients_config = json.loads(config_path.read_text(encoding="utf-8"))
+    config_path = Path(__file__).resolve().parent.parent / "03_Config" / "clients_config.json"
+    if config_path.exists():
+        clients_config = json.loads(config_path.read_text(encoding="utf-8"))
+
+    def _is_excluded(client_id):
+        """Check if a client is excluded in clients_config.json."""
+        cfg = clients_config.get(client_id, {})
+        return cfg.get("exclude", False)
 
     def _process_one_csm(csm_name, csm_source):
         """Process a single CSM -- can be called in parallel."""
@@ -463,7 +483,7 @@ def main():
         log_message(f"    Staging: {staging}", log_file)
         log_message(f"    Output:  {output}", log_file)
 
-        success, errors = process_csm(csm_name, str(src), str(staging), str(output), log_file, args.client, args.force)
+        success, errors = process_csm(csm_name, str(src), str(staging), str(output), log_file, args.client, args.force, clients_config)
 
         # ─── EXTRA FILE GATHERING ───
         output_str = str(output)
@@ -471,7 +491,7 @@ def main():
         if args.with_trans and src.exists():
             log_message(f"  {csm_name}: Gathering transaction files...", log_file)
             txn_base = str(output_base / "TXN Files")
-            t_ok, t_err = gather_trans_files(str(src), txn_base, csm_name, args.client, log_file)
+            t_ok, t_err = gather_trans_files(str(src), txn_base, csm_name, args.client, log_file, clients_config)
             log_message(f"    Trans: {t_ok} copied, {t_err} errors", log_file)
 
         if args.with_deferred:

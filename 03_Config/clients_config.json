@@ -1088,5 +1088,15 @@
             "Y"
         ],
         "BranchMapping": {}
+    },
+    "1795": {
+        "ClientID": "1795",
+        "exclude": true,
+        "exclude_reason": "No longer an active product"
+    },
+    "1562": {
+        "ClientID": "1562",
+        "exclude": true,
+        "exclude_reason": "No longer an active product"
     }
 }

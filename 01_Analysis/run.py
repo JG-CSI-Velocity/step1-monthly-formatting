@@ -272,6 +272,18 @@ def main():
             if found:
                 config_path = found[0]
 
+    # Check if client is excluded
+    if config_path:
+        try:
+            _all_clients = json.loads(Path(config_path).read_text(encoding="utf-8"))
+            _client_cfg = _all_clients.get(client_id, {})
+            if _client_cfg.get("exclude", False):
+                _reason = _client_cfg.get("exclude_reason", "excluded")
+                print(f"  Skipping client {client_id} -- {_reason}")
+                sys.exit(0)
+        except Exception:
+            pass
+
     print()
     print("=" * 70)
     print("  STEP 2: ARS ANALYSIS + POWERPOINT GENERATION")
