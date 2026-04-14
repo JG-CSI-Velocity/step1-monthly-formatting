@@ -1898,7 +1898,16 @@ def build_deck(ctx: PipelineContext) -> Path | None:
 
     # Build the PPTX
     ctx.paths.pptx_dir.mkdir(parents=True, exist_ok=True)
-    output_path = ctx.paths.pptx_dir / f"{ctx.client.client_id}_{ctx.client.month}_deck.pptx"
+    # Detect product type from slide IDs to avoid overwriting different runs
+    _has_ars = any(not getattr(s, "slide_id", "").startswith("TXN-") for s in final_slides)
+    _has_txn = any(getattr(s, "slide_id", "").startswith("TXN-") for s in final_slides)
+    if _has_ars and _has_txn:
+        _product_label = "combined"
+    elif _has_txn:
+        _product_label = "txn"
+    else:
+        _product_label = "ars"
+    output_path = ctx.paths.pptx_dir / f"{ctx.client.client_id}_{ctx.client.month}_{_product_label}_deck.pptx"
 
     try:
         builder = DeckBuilder(str(template))
