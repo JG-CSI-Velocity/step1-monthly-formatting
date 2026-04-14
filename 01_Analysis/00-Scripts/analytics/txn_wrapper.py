@@ -208,16 +208,9 @@ class TXNSectionWrapper(AnalysisModule):
             # Shallow copy: section scripts can add/reassign variables without
             # affecting other sections, but large DataFrames (combined_df,
             # rewards_df) are NOT duplicated -- they share the same memory.
+            # Variables created by earlier sections (GEN_COLORS, demo_df, etc.)
+            # ARE carried forward because later sections depend on them.
             namespace = shared_namespace.copy()
-            # Snapshot DataFrame columns so we can undo in-place mutations.
-            # Some sections add columns (e.g., branch_txn adds 'branch',
-            # general adds 'amount_bracket') which would leak to later sections.
-            import pandas as pd
-            _df_snapshots = {}
-            for _key in ("combined_df", "rewards_df"):
-                _obj = namespace.get(_key)
-                if isinstance(_obj, pd.DataFrame):
-                    _df_snapshots[_key] = list(_obj.columns)
         else:
             # Legacy path: build namespace + run setup per section.
             # Only used if caller doesn't provide shared_namespace.
@@ -232,17 +225,12 @@ class TXNSectionWrapper(AnalysisModule):
         chart_dir = ctx.paths.charts_dir / self.section_name
         charts = _execute_scripts(self.section_dir, namespace, chart_dir, self.section_name)
 
-        # Undo in-place DataFrame mutations from this section.
-        # Sections like branch_txn add columns to the shared combined_df.
-        # Drop them so the next section sees the original schema.
+        # Propagate new variables back to shared namespace so later sections
+        # can use them (e.g., GEN_COLORS from general, demo_df, acct_txn_counts).
         if shared_namespace is not None:
-            import pandas as pd
-            for _key, _original_cols in _df_snapshots.items():
-                _obj = shared_namespace.get(_key)
-                if isinstance(_obj, pd.DataFrame):
-                    _added = [c for c in _obj.columns if c not in _original_cols]
-                    if _added:
-                        _obj.drop(columns=_added, inplace=True)
+            for key, val in namespace.items():
+                if key not in shared_namespace:
+                    shared_namespace[key] = val
 
         # Convert captured charts to AnalysisResult objects
         results = []
@@ -271,14 +259,33 @@ def _build_namespace(ctx: PipelineContext) -> dict[str, Any]:
     import pandas as pd
     import matplotlib.pyplot as plt
 
+    # Jupyter-compatible display() -- scripts converted from notebooks call this.
+    # In a script context, just print the repr.
+    def _display(*args, **kwargs):
+        for a in args:
+            if hasattr(a, 'to_string'):
+                print(a.to_string())
+            else:
+                print(a)
+
+    from matplotlib.gridspec import GridSpec
+    import seaborn as sns
+    import warnings
+    warnings.filterwarnings('ignore')
+
     ns: dict[str, Any] = {
         # Common imports available to all scripts
         "pd": pd,
         "np": np,
         "plt": plt,
+        "sns": sns,
+        "GridSpec": GridSpec,
         "Path": Path,
         "os": os,
         "sys": sys,
+        "warnings": warnings,
+        # Jupyter compatibility
+        "display": _display,
         # Pipeline context values
         "CLIENT_ID": ctx.client.client_id,
         "CLIENT_NAME": ctx.client.client_name,
