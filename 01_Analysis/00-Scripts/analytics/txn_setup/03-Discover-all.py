@@ -1,10 +1,8 @@
-# Discover all files in the client folder
-all_files = list(CLIENT_PATH.glob(f'**/*.{FILE_EXTENSION}'))
-print(f"Found {len(all_files)} files:\n")
-for file in sorted(all_files):
+# Show files that will be loaded (trailing 12-month window from 02-file-config.py)
+print(f"Files to load ({len(files_to_load)}):\n")
+for file in sorted(files_to_load):
     file_size = file.stat().st_size / 1024  # Size in KB
     print(f"  • {file.name} ({file_size:.1f} KB)")
 
-# Identify file extensions
-extensions = set([f.suffix.lower() for f in all_files if f.is_file()])
-print(f"\nFile types found: {extensions}")
+if older_files:
+    print(f"\nExcluded (older than {TRAILING_MONTHS} months): {len(older_files)} file(s)")

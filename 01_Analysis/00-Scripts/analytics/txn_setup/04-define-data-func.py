@@ -29,12 +29,12 @@ def load_transaction_file(filepath):
     
     return df
 
-# Load all transaction files
+# Load TXN files from the trailing 12-month window (set by 02-file-config.py)
+# files_to_load = recent dated files + unparsed files (can't exclude what we can't date)
 transaction_files = []
-files_to_load = sorted(CLIENT_PATH.glob(f'**/*.{FILE_EXTENSION}'))
 print(f"Loading {len(files_to_load)} transaction files...\n")
 
-for file_path in files_to_load:
+for file_path in sorted(files_to_load):
     df = load_transaction_file(file_path)
     transaction_files.append(df)
     print(f"  Loaded: {file_path.name} ({len(df):,} rows)")

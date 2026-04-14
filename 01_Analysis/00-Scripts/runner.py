@@ -341,10 +341,14 @@ def _convert_results(ars_ctx: Any) -> dict[str, SharedResult]:
 def run_txn(ctx: SharedContext) -> dict[str, SharedResult]:
     """Run TXN analysis via TXN section wrappers.
 
-    Discovers all TXN section folders, executes their scripts in a shared
-    namespace, captures charts, and appends results to ctx.all_slides.
+    Discovers all TXN section folders, runs txn_setup ONCE to build
+    combined_df (millions of rows), then executes each section's scripts
+    against the shared namespace. No redundant data loading.
     """
-    from ars_analysis.analytics.txn_wrapper import discover_txn_sections
+    from ars_analysis.analytics.txn_wrapper import (
+        discover_txn_sections,
+        prepare_shared_namespace,
+    )
     from ars_analysis.pipeline.context import (
         ClientInfo,
         OutputPaths,
@@ -401,7 +405,15 @@ def run_txn(ctx: SharedContext) -> dict[str, SharedResult]:
     if ctx.progress_callback:
         ctx.progress_callback("Starting TXN analysis...")
 
-    # Discover and run TXN sections
+    # --- KEY OPTIMIZATION ---
+    # Run txn_setup ONCE: reads all TXN files from disk, builds combined_df,
+    # loads ODD, merges, and optimizes memory. With millions of rows x 12
+    # months this takes significant time -- doing it 22x was the bottleneck.
+    if ctx.progress_callback:
+        ctx.progress_callback("  Loading TXN data (txn_setup)...")
+    shared_namespace = prepare_shared_namespace(ars_ctx)
+
+    # Discover and run TXN sections against the shared namespace
     wrappers = discover_txn_sections()
     success_count = 0
     fail_count = 0
@@ -409,7 +421,7 @@ def run_txn(ctx: SharedContext) -> dict[str, SharedResult]:
 
     for i, wrapper in enumerate(wrappers, 1):
         if ctx.progress_callback:
-            ctx.progress_callback(f"  TXN module {i}/{total}: {wrapper.display_name}")
+            ctx.progress_callback(f"  TXN section {i}/{total}: {wrapper.display_name}")
 
         errors = wrapper.validate(ars_ctx)
         if errors:
@@ -418,7 +430,7 @@ def run_txn(ctx: SharedContext) -> dict[str, SharedResult]:
             continue
 
         try:
-            results = wrapper.run(ars_ctx)
+            results = wrapper.run(ars_ctx, shared_namespace=shared_namespace)
             ars_ctx.results[wrapper.module_id] = results
             ars_ctx.all_slides.extend(results)
             success_count += 1

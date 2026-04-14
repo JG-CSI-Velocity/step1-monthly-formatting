@@ -195,23 +195,31 @@ def process_csm(csm_name, src_directory, staging_directory, output_directory, lo
 
 # ─── EXTRA FILE GATHERING ──────────────────────────────────────────────
 
-def gather_trans_files(src_directory, output_directory, client_filter=None, log_file=None):
-    """Copy transaction files from CSM data dump into per-client output folders.
+def gather_trans_files(src_directory, txn_output_base, csm_name, client_filter=None, log_file=None):
+    """Copy transaction files from CSM data dump into TXN Files folder.
 
-    Looks for .txt and .csv files containing 'trans' or 'tran' in the name.
-    Matches client ID from the start of the filename.
+    Destination: 02-Data-Ready for Analysis/TXN Files/{CSM}/{client_id}/
+    Detection: .txt/.csv files whose name starts with a client ID and contains
+    'tran' anywhere (covers 'trans', 'transaction', 'monthlytran', etc.).
+    See GitHub issue #45 for the full naming variation list.
+    Incremental: skips files that already exist with the same size.
     """
     if not os.path.exists(src_directory):
         return 0, 0
 
-    # Find transaction files
-    trans_patterns = ['trans', 'tran', 'transaction']
+    # Find transaction files -- 'tran' substring covers all known variants:
+    #   coasthills-trans-MMDDYYYY.txt
+    #   1441_..._debit card transaction monthly.csv
+    #   1562_..._velocity.ars.transactions.YYYY.MM.DD.txt
+    #   1585_..._monthly_transaction_data_mls.txt
+    #   1795_..._monthlytran.csv
     trans_files = []
     for f in os.listdir(src_directory):
         if os.path.isdir(os.path.join(src_directory, f)):
             continue
         f_lower = f.lower()
-        if any(p in f_lower for p in trans_patterns) and f_lower.endswith(('.txt', '.csv')):
+        if 'tran' in f_lower and f_lower.endswith(('.txt', '.csv')):
+            # Extract client ID: either leading digits before _ or before -
             client_match = re.match(r'^(\d+)', f)
             if client_match:
                 cid = client_match.group(1)
@@ -223,17 +231,25 @@ def gather_trans_files(src_directory, output_directory, client_filter=None, log_
         return 0, 0
 
     success = 0
+    skipped = 0
     errors = 0
     for client_id, filename in trans_files:
         try:
             src_path = os.path.join(src_directory, filename)
-            dest_dir = os.path.join(output_directory, client_id)
+            src_size = os.path.getsize(src_path)
+
+            # Destination: TXN Files/{CSM}/{client_id}/
+            dest_dir = os.path.join(txn_output_base, csm_name, client_id)
             os.makedirs(dest_dir, exist_ok=True)
             dest_path = os.path.join(dest_dir, filename)
 
+            # Skip if same file already exists (same name + same size)
             if os.path.exists(dest_path):
-                log_message(f"    Trans: {filename} -- already exists, skipping", log_file)
-                continue
+                if os.path.getsize(dest_path) == src_size:
+                    skipped += 1
+                    continue
+                # Different size = updated file, overwrite
+                log_message(f"    Trans: {filename} -- size changed, re-copying", log_file)
 
             shutil.copy2(src_path, dest_path)
             log_message(f"    Trans: {filename} -> {dest_dir}", log_file)
@@ -241,6 +257,9 @@ def gather_trans_files(src_directory, output_directory, client_filter=None, log_
         except Exception as e:
             log_message(f"    Trans ERROR: {filename}: {e}", log_file)
             errors += 1
+
+    if skipped:
+        log_message(f"    Trans: {skipped} file(s) already up to date", log_file)
 
     return success, errors
 
@@ -359,9 +378,12 @@ def main():
 
     month = args.month or datetime.now().strftime("%Y.%m")
 
-    # Shortcut: --with-all enables all three
+    # TXN file gathering is always on -- no flag needed.
+    # CSMs run this from the UI which doesn't pass --with-trans.
+    args.with_trans = True
+
+    # Shortcut: --with-all enables deferred + workbook
     if args.with_all:
-        args.with_trans = True
         args.with_deferred = True
         args.with_workbook = True
 
@@ -448,7 +470,8 @@ def main():
 
         if args.with_trans and src.exists():
             log_message(f"  {csm_name}: Gathering transaction files...", log_file)
-            t_ok, t_err = gather_trans_files(str(src), output_str, args.client, log_file)
+            txn_base = str(output_base / "TXN Files")
+            t_ok, t_err = gather_trans_files(str(src), txn_base, csm_name, args.client, log_file)
             log_message(f"    Trans: {t_ok} copied, {t_err} errors", log_file)
 
         if args.with_deferred:
