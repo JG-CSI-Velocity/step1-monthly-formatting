@@ -107,3 +107,14 @@ Note: Phase 15 can proceed in parallel with Phase 14 (both depend on Phase 13). 
 | 14. TXN Merge Batch 2 | v1.1 | 0/0 | Not started | - |
 | 15. Setup Parameterization | v1.1 | 0/0 | Not started | - |
 | 16. Verification | v1.1 | 0/0 | Not started | - |
+
+## Backlog
+
+### Phase 999.1: End-to-End Orchestration & Scheduling (BACKLOG)
+
+**Goal:** Single-command or single-button pipeline that chains formatting -> analysis (ARS + TXN) -> PowerPoint generation for one client/month. Include scheduling support so CSMs can set up recurring runs (e.g., monthly auto-generate for their clients).
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
