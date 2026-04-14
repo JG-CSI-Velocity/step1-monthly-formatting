@@ -148,7 +148,16 @@ def _normalize_columns(df: pd.DataFrame, file_path: Path) -> None:
 
 
 def _read_file(path: Path) -> pd.DataFrame:
-    """Read a file based on extension."""
+    """Read a file based on extension.
+
+    For Excel files on network drives, copies to a local temp file first.
+    openpyxl makes many small random-access reads to .xlsx files (ZIP of XML),
+    and each read is a network round-trip. A 450-column file can hang for hours
+    over a slow connection. Local copy + read takes seconds.
+    """
+    import shutil
+    import tempfile
+
     suffix = path.suffix.lower()
 
     # Reject unsupported formats first
@@ -170,7 +179,17 @@ def _read_file(path: Path) -> pd.DataFrame:
         try:
             with warnings.catch_warnings():
                 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
-                return pd.read_excel(path)
+                # Copy to local temp file to avoid network I/O penalty.
+                # openpyxl reads .xlsx via random-access ZIP -- brutal over network.
+                with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+                    tmp_path = Path(tmp.name)
+                logger.info("Copying {name} to local temp for faster read...", name=path.name)
+                shutil.copy2(path, tmp_path)
+                logger.info("Copy done ({mb:.1f} MB). Reading...", mb=file_size / 1024 / 1024)
+                try:
+                    return pd.read_excel(tmp_path)
+                finally:
+                    tmp_path.unlink(missing_ok=True)
         except ValueError as exc:
             raise DataError(
                 f"Cannot read Excel file: {exc}",
