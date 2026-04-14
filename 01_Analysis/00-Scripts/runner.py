@@ -418,6 +418,7 @@ def run_txn(ctx: SharedContext) -> dict[str, SharedResult]:
     success_count = 0
     fail_count = 0
     total = len(wrappers)
+    section_results = []  # track per-section outcomes for summary
 
     for i, wrapper in enumerate(wrappers, 1):
         if ctx.progress_callback:
@@ -426,6 +427,7 @@ def run_txn(ctx: SharedContext) -> dict[str, SharedResult]:
         errors = wrapper.validate(ars_ctx)
         if errors:
             logger.warning("TXN section %s skipped: %s", wrapper.section_name, errors)
+            section_results.append((wrapper.display_name, 0, "SKIPPED"))
             fail_count += 1
             continue
 
@@ -433,17 +435,30 @@ def run_txn(ctx: SharedContext) -> dict[str, SharedResult]:
             results = wrapper.run(ars_ctx, shared_namespace=shared_namespace)
             ars_ctx.results[wrapper.module_id] = results
             ars_ctx.all_slides.extend(results)
+            n_slides = len(results)
+            section_results.append((wrapper.display_name, n_slides, "OK" if n_slides > 0 else "NO CHARTS"))
             success_count += 1
-            logger.info("TXN section %s: %d slides", wrapper.section_name, len(results))
+            logger.info("TXN section %s: %d slides", wrapper.section_name, n_slides)
         except Exception as exc:
             logger.error("TXN section %s failed: %s", wrapper.section_name, exc)
+            section_results.append((wrapper.display_name, 0, f"FAILED: {exc}"))
             fail_count += 1
 
+    # Print summary report
     if ctx.progress_callback:
+        ctx.progress_callback("")
+        ctx.progress_callback("=" * 60)
+        ctx.progress_callback("  TXN ANALYSIS SUMMARY")
+        ctx.progress_callback("=" * 60)
+        for name, slides, status in section_results:
+            marker = "OK" if "OK" in status else "!!" if "FAIL" in status or "SKIP" in status else "--"
+            ctx.progress_callback(f"  [{marker}] {name:<30s} {slides:>3} slides  {status}")
+        ctx.progress_callback("-" * 60)
         ctx.progress_callback(
-            f"TXN complete: {success_count} sections OK, {fail_count} failed, "
-            f"{len(ars_ctx.all_slides)} slides"
+            f"  Total: {success_count} OK, {fail_count} failed, "
+            f"{len(ars_ctx.all_slides)} slides generated"
         )
+        ctx.progress_callback("=" * 60)
 
     # Generate output (deck + excel) if slides exist
     if ars_ctx.all_slides:
