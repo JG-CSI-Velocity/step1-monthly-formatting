@@ -114,6 +114,13 @@ def _execute_scripts(script_dir: Path, namespace: dict[str, Any],
 
     for script_path in scripts:
         script_name = script_path.stem
+
+        # Check for skip flag -- sections can set SKIP_SECTION = True
+        # to bail out early (e.g., "No MCC data available")
+        if namespace.get("SKIP_SECTION"):
+            logger.info("  TXN skipping: {name} (SKIP_SECTION set)", name=script_name)
+            continue
+
         logger.info("  TXN executing: {name}", name=script_name)
 
         with ChartCapture(chart_dir, prefix=f"{section_prefix}_{script_name}") as capture:
@@ -127,6 +134,9 @@ def _execute_scripts(script_dir: Path, namespace: dict[str, Any],
                 continue
 
         all_charts.extend(capture.captured)
+
+    # Reset skip flag for next section
+    namespace.pop("SKIP_SECTION", None)
 
     return all_charts
 

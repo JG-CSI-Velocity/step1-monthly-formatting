@@ -112,3 +112,26 @@ else:
     print(f"  Business unique merchants (consolidated): {business_df['merchant_consolidated'].nunique():,}")
     print(f"  Personal unique merchants (consolidated): {personal_df['merchant_consolidated'].nunique():,}")
     print(f"  Total months in dataset: {combined_df['year_month'].nunique()}")
+
+# ===========================================================================
+# SAVE PARQUET CACHE (speeds up subsequent runs from ~25 min to ~10 sec)
+# ===========================================================================
+if not SKIP_COMBINE:
+    try:
+        print(f"\nSaving Parquet cache for next run...")
+        combined_df.to_parquet(PARQUET_CACHE, index=False, engine='pyarrow')
+        _cache_mb = PARQUET_CACHE.stat().st_size / 1024 / 1024
+        print(f"  Saved: {PARQUET_CACHE.name} ({_cache_mb:.0f} MB)")
+        print(f"  Next run will load from cache instead of reading {len(files_to_load)} files")
+    except Exception as _e:
+        print(f"  WARNING: Could not save Parquet cache: {_e}")
+        print(f"  (Not fatal -- next run will rebuild from source files)")
+
+# Clean up local temp directory
+if LOCAL_TXN_DIR is not None:
+    try:
+        import shutil
+        shutil.rmtree(LOCAL_TXN_DIR, ignore_errors=True)
+        print(f"  Cleaned up local temp: {LOCAL_TXN_DIR}")
+    except Exception:
+        pass

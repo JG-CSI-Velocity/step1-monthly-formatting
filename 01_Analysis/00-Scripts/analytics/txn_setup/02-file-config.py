@@ -146,7 +146,12 @@ def gather_all_txn_files(client_root: Path) -> list[Path]:
 # ------------------------------------------------------------
 # Main logic
 # ------------------------------------------------------------
+import shutil
+import tempfile
+
 TRAILING_MONTHS = 12
+PARQUET_CACHE = CLIENT_PATH / f"{CLIENT_ID}_combined_cache.parquet"
+USE_PARQUET_CACHE = None  # set below if cache is fresh
 
 # 1) Gather all TXN files (handles year folders or flat layout)
 all_files = gather_all_txn_files(CLIENT_PATH)
@@ -173,8 +178,34 @@ recent_files = [f for f, d in dated_files if d >= window_start]
 older_files = [f for f, d in dated_files if d < window_start]
 
 # 5) Include unparsed files (can't determine date -- safer to include)
-# These will show a warning so JG can investigate naming.
 files_to_load = recent_files + unparsed_files
+
+# 6) Check Parquet cache -- if it's newer than ALL TXN files, skip file reading
+if PARQUET_CACHE.exists() and files_to_load:
+    _cache_mtime = PARQUET_CACHE.stat().st_mtime
+    _newest_file_mtime = max(f.stat().st_mtime for f in files_to_load)
+    if _cache_mtime > _newest_file_mtime:
+        USE_PARQUET_CACHE = PARQUET_CACHE
+        print(f"CACHE HIT: Loading from Parquet cache (faster)")
+        print(f"  Cache: {PARQUET_CACHE.name}")
+        print(f"  Cache date: {datetime.fromtimestamp(_cache_mtime):%Y-%m-%d %H:%M}")
+    else:
+        print(f"CACHE MISS: New TXN files detected, rebuilding from source")
+
+# 7) If no cache, copy TXN files to local temp for faster reads
+#    Network share random I/O is brutal -- sequential copy + local read is 5x faster
+LOCAL_TXN_DIR = None
+if USE_PARQUET_CACHE is None and files_to_load:
+    LOCAL_TXN_DIR = Path(tempfile.mkdtemp(prefix="txn_local_"))
+    print(f"Copying {len(files_to_load)} TXN files to local temp for faster reads...")
+    _local_files = []
+    for f in files_to_load:
+        dest = LOCAL_TXN_DIR / f.name
+        shutil.copy2(f, dest)
+        _local_files.append(dest)
+    print(f"  Copied {sum(f.stat().st_size for f in _local_files) / 1024 / 1024:.0f} MB to {LOCAL_TXN_DIR}")
+    # Replace files_to_load with local copies
+    files_to_load = _local_files
 
 # ------------------------------------------------------------
 # Summary output
@@ -190,5 +221,5 @@ if unparsed_files:
     for u in unparsed_files:
         print(f"  {u.name}")
 
-if not files_to_load:
+if not files_to_load and USE_PARQUET_CACHE is None:
     print(f"WARNING: No TXN files found for trailing {TRAILING_MONTHS} months")

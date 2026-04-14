@@ -14,6 +14,23 @@ EXPECTED_COLUMNS = [
     'transaction_code'      # Transaction code
 ]
 
+# Dtype hints -- avoids pandas type inference on millions of rows (saves ~30% read time)
+DTYPE_HINTS = {
+    0: 'str',    # transaction_date (parsed later)
+    1: 'str',    # primary_account_num
+    2: 'str',    # transaction_type (PIN, SIG, etc.)
+    3: 'str',    # amount (cleaned later with pd.to_numeric)
+    4: 'str',    # mcc_code
+    5: 'str',    # merchant_name
+    6: 'str',    # terminal_location_1
+    7: 'str',    # terminal_location_2
+    8: 'str',    # terminal_id
+    9: 'str',    # merchant_id
+    10: 'str',   # institution
+    11: 'str',   # card_present
+    12: 'str',   # transaction_code
+}
+
 
 def load_transaction_file(filepath):
     """Load a debit card transaction file (.txt or .csv).
@@ -30,13 +47,16 @@ def load_transaction_file(filepath):
     else:
         sep = '\t'
 
-    df = pd.read_csv(filepath, sep=sep, skiprows=1, header=None, low_memory=False)
+    # Use dtype hints to skip type inference (big speedup on millions of rows)
+    df = pd.read_csv(filepath, sep=sep, skiprows=1, header=None,
+                     dtype=DTYPE_HINTS, low_memory=False, na_values=['', 'NA', 'N/A'])
 
     # Warn if column count is unexpected
     if len(df.columns) == 1 and sep == '\t':
         # Might be a comma-separated file with .txt extension -- retry
         print(f"  WARNING: {filepath.name} has 1 column with tab delimiter, retrying with comma...")
-        df = pd.read_csv(filepath, sep=',', skiprows=1, header=None, low_memory=False)
+        df = pd.read_csv(filepath, sep=',', skiprows=1, header=None,
+                         dtype=DTYPE_HINTS, low_memory=False, na_values=['', 'NA', 'N/A'])
 
     if len(df.columns) != len(EXPECTED_COLUMNS):
         print(f"  WARNING: {filepath.name} has {len(df.columns)} columns (expected {len(EXPECTED_COLUMNS)})")
@@ -49,15 +69,32 @@ def load_transaction_file(filepath):
 
     return df
 
-# Load TXN files from the trailing 12-month window (set by 02-file-config.py)
-# files_to_load = recent dated files + unparsed files (can't exclude what we can't date)
-transaction_files = []
-print(f"Loading {len(files_to_load)} transaction files...\n")
 
-for file_path in sorted(files_to_load):
-    df = load_transaction_file(file_path)
-    transaction_files.append(df)
-    print(f"  Loaded: {file_path.name} ({len(df):,} rows)")
+# ------------------------------------------------------------
+# Load data -- Parquet cache or raw files
+# ------------------------------------------------------------
+import time as _t
+_load_start = _t.time()
 
-print(f"\n{'='*50}")
-print(f"Total transactions loaded: {sum(len(df) for df in transaction_files):,}")
+if USE_PARQUET_CACHE is not None:
+    # Fast path: load from Parquet cache (seconds instead of minutes)
+    print(f"Loading Parquet cache: {USE_PARQUET_CACHE.name}")
+    combined_df = pd.read_parquet(USE_PARQUET_CACHE)
+    transaction_files = []  # not needed, combined_df is ready
+    SKIP_COMBINE = True
+    print(f"  Loaded: {len(combined_df):,} rows x {len(combined_df.columns)} cols in {_t.time() - _load_start:.1f}s")
+    print(f"  Memory: {combined_df.memory_usage(deep=True).sum() / 1024**2:.0f} MB")
+else:
+    # Standard path: read TXN files (now from local temp, much faster than network)
+    transaction_files = []
+    SKIP_COMBINE = False
+    print(f"Loading {len(files_to_load)} transaction files...\n")
+
+    for file_path in sorted(files_to_load):
+        df = load_transaction_file(file_path)
+        transaction_files.append(df)
+        print(f"  Loaded: {file_path.name} ({len(df):,} rows)")
+
+    print(f"\n{'='*50}")
+    print(f"Total transactions loaded: {sum(len(df) for df in transaction_files):,}")
+    print(f"File read time: {_t.time() - _load_start:.1f}s")
