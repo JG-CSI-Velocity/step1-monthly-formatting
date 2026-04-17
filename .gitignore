@@ -14,6 +14,7 @@ __pycache__/
 !02_Presentations/tests/
 02_Presentations/tests/fixtures/*
 !02_Presentations/tests/fixtures/.gitkeep
+!02_Presentations/tests/fixtures/*.pptx
 04_Logs/
 !04_Logs/.gitkeep
 
