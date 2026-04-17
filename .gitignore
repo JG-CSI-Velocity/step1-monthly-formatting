@@ -13,9 +13,19 @@ __pycache__/
 !02_Presentations/style/
 !02_Presentations/scripts/
 !02_Presentations/tests/
+!02_Presentations/README.md
+!02_Presentations/polish_windows.bat
+!02_Presentations/polish_mac.command
+!02_Presentations/decks_to_polish/
+!02_Presentations/polished/
 02_Presentations/tests/fixtures/*
 !02_Presentations/tests/fixtures/.gitkeep
 !02_Presentations/tests/fixtures/*.pptx
+02_Presentations/decks_to_polish/*
+!02_Presentations/decks_to_polish/README.txt
+!02_Presentations/decks_to_polish/.gitkeep
+02_Presentations/polished/*
+!02_Presentations/polished/.gitkeep
 04_Logs/
 !04_Logs/.gitkeep
 
