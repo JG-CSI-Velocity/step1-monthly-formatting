@@ -1,15 +1,11 @@
 """Tests for style.palette -- CSI color constants and helpers."""
 
+import pytest
 from pptx.dml.color import RGBColor
 
 from style.palette import (
-    AMBER,
-    CORAL,
-    GRAY,
-    NAVY,
-    SLATE,
-    TEAL,
-    WHITE,
+    AMBER, CORAL, GRAY, NAVY, SLATE, TEAL, WHITE,
+    focal, is_palette_color, nearest_palette,
 )
 
 
@@ -21,9 +17,6 @@ def test_named_colors_match_slide_mapping_hex():
     assert GRAY == RGBColor(0x95, 0xA5, 0xA6)
     assert SLATE == RGBColor(0x6B, 0x72, 0x80)
     assert WHITE == RGBColor(0xFF, 0xFF, 0xFF)
-
-
-from style.palette import is_palette_color, nearest_palette
 
 
 def test_is_palette_color_true_for_exact_match():
@@ -47,12 +40,9 @@ def test_nearest_palette_returns_none_when_nothing_close_enough():
 
 
 def test_nearest_palette_respects_threshold():
-    # Exactly 5 away -- within threshold of 5.0
-    just_inside = RGBColor(0x1E, 0x39, 0x5D)  # navy with (+3,+3,0) -> d=~4.24
+    # d = sqrt(3^2 + 3^2 + 0^2) = sqrt(18) ≈ 4.24, well inside threshold 5.0
+    just_inside = RGBColor(0x1E, 0x39, 0x5D)  # navy with (+3,+3,0)
     assert nearest_palette(just_inside) == NAVY
-
-
-from style.palette import focal
 
 
 def test_focal_returns_named_color_with_muted_set():
@@ -63,6 +53,5 @@ def test_focal_returns_named_color_with_muted_set():
 
 
 def test_focal_raises_for_unknown_name():
-    import pytest
     with pytest.raises(KeyError):
         focal("chartreuse")
