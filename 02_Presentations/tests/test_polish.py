@@ -2,7 +2,9 @@
 
 from pathlib import Path
 
-from polish import audit_deck, write_report
+from pptx import Presentation
+
+from polish import apply_fixes, audit_deck, write_report
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -38,3 +40,40 @@ def test_write_report_produces_markdown(tmp_path):
     text = report_path.read_text()
     assert text.startswith("# Polish Report")
     assert "Slides:" in text
+
+
+def test_apply_fixes_replaces_times_new_roman_with_montserrat(tmp_path):
+    out_path = tmp_path / "fixed.pptx"
+    apply_fixes(FIXTURES / "badly_broken.pptx", out_path)
+    prs = Presentation(str(out_path))
+    for slide in prs.slides:
+        for shape in slide.shapes:
+            if not shape.has_text_frame:
+                continue
+            for para in shape.text_frame.paragraphs:
+                for run in para.runs:
+                    if run.font.name is not None:
+                        assert run.font.name == "Montserrat", (
+                            f"Found non-Montserrat font: {run.font.name}"
+                        )
+
+
+def test_apply_fixes_snaps_near_palette_color_on_moderately_broken(tmp_path):
+    out_path = tmp_path / "fixed.pptx"
+    apply_fixes(FIXTURES / "moderately_broken.pptx", out_path)
+    prs = Presentation(str(out_path))
+    from pptx.dml.color import RGBColor
+    CORAL = RGBColor(0xE7, 0x4C, 0x3C)
+    found_coral = False
+    slide = prs.slides[3]  # slide index 3 (0-based) has near-coral title
+    for shape in slide.shapes:
+        if not shape.has_text_frame:
+            continue
+        for para in shape.text_frame.paragraphs:
+            for run in para.runs:
+                try:
+                    if run.font.color.rgb == CORAL:
+                        found_coral = True
+                except AttributeError:
+                    pass
+    assert found_coral, "Expected near-coral color to snap to exact CORAL"

@@ -156,6 +156,59 @@ def write_report(audit: DeckAudit, path: Path) -> None:
     path.write_text("\n".join(lines))
 
 
+MONTSERRAT_FAMILY = ("Montserrat", "Montserrat Regular", "Montserrat Bold",
+                     "Montserrat ExtraBold", "Montserrat Medium")
+
+
+def _force_montserrat(run) -> bool:
+    """If run's font isn't in the Montserrat family, set it. Returns True if changed."""
+    current = run.font.name
+    if current in MONTSERRAT_FAMILY:
+        return False
+    run.font.name = "Montserrat"
+    return True
+
+
+def _snap_near_palette(run) -> bool:
+    """If run color is within palette threshold, snap to palette. Returns True if changed."""
+    from style.palette import nearest_palette
+    try:
+        rgb = run.font.color.rgb
+    except AttributeError:
+        return False
+    if rgb is None:
+        return False
+    snapped = nearest_palette(rgb)
+    if snapped is not None and snapped != rgb:
+        run.font.color.rgb = snapped
+        return True
+    return False
+
+
+def apply_fixes(deck_path: Path, out_path: Path) -> dict[str, int]:
+    """Open deck, apply force-apply fixes, save to out_path.
+
+    Returns a dict of change counts: {'fonts_fixed': N, 'colors_snapped': M}.
+    """
+    prs = Presentation(str(deck_path))
+    fonts_fixed = 0
+    colors_snapped = 0
+    for slide in prs.slides:
+        for shape in slide.shapes:
+            if not shape.has_text_frame:
+                continue
+            for para in shape.text_frame.paragraphs:
+                for run in para.runs:
+                    if _force_montserrat(run):
+                        fonts_fixed += 1
+                    if _snap_near_palette(run):
+                        colors_snapped += 1
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    prs.save(str(out_path))
+    return {"fonts_fixed": fonts_fixed, "colors_snapped": colors_snapped}
+
+
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
         prog="polish",
@@ -170,12 +223,21 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return p.parse_args(argv)
 
 
-def _process_one(deck_path: Path, out_dir: Path) -> DeckAudit:
+def _process_one(deck_path: Path, out_dir: Path, apply: bool) -> DeckAudit:
     out_dir.mkdir(parents=True, exist_ok=True)
     audit = audit_deck(deck_path)
     report_path = out_dir / f"{deck_path.stem}__polish_report.md"
     write_report(audit, report_path)
     logger.info(f"Wrote {report_path}")
+
+    if apply:
+        polished_path = out_dir / deck_path.name
+        counts = apply_fixes(deck_path, polished_path)
+        logger.info(
+            f"Applied: {counts['fonts_fixed']} fonts, "
+            f"{counts['colors_snapped']} colors. Wrote {polished_path}"
+        )
+
     return audit
 
 
@@ -198,7 +260,7 @@ def main(argv: list[str] | None = None) -> int:
     all_audits: list[DeckAudit] = []
     for d in decks:
         out_dir = args.out if args.out else d.parent / "polished"
-        all_audits.append(_process_one(d, out_dir))
+        all_audits.append(_process_one(d, out_dir, apply=args.apply))
 
     if args.strict:
         any_flag = any(s.flagged for a in all_audits for s in a.slides)
