@@ -8,6 +8,7 @@ __pycache__/
 02_Presentations/*
 !02_Presentations/.gitkeep
 !02_Presentations/__init__.py
+!02_Presentations/polish.py
 !02_Presentations/conftest.py
 !02_Presentations/style/
 !02_Presentations/scripts/
