@@ -1,0 +1,12 @@
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <h1>{{ client.display_name }}</h1>
+    <p>{{ client.month_display }} Review</p>
+  </div>
+  {% for section in sections %}
+    <a class="sidebar-section" href="#section-{{ section.id }}" data-section-target="{{ section.id }}">
+      {{ section.title }}
+      <span class="count">{{ section.blocks|length }}</span>
+    </a>
+  {% endfor %}
+</aside>
