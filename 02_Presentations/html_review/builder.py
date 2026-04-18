@@ -192,6 +192,7 @@ def build_html(
         print_css=_load_text("templates/print.css"),
         app_js=_load_text("static/app.js"),
         print_js=_load_text("static/print.js"),
+        present_js=_load_text("static/present.js"),
     )
 
     out_path = out_dir / "index.html"

@@ -27,11 +27,17 @@
       <div class="selection-spacer"></div>
       <button class="action-btn" id="btn-clear">Clear</button>
       <button class="action-btn primary" id="btn-export">Export PDF →</button>
+      <button class="action-btn" id="btn-present">Present ⎚</button>
     </div>
 
     {% for section in sections %}
       {% include 'partials/section.html' %}
     {% endfor %}
+
+    <div class="presenter-chrome" aria-hidden="true">
+      <div class="presenter-counter" id="presenter-counter">1 / 1</div>
+      <div class="presenter-progress"><div class="presenter-progress-bar" id="presenter-progress-bar"></div></div>
+    </div>
 
   </main>
 
@@ -39,6 +45,7 @@
 
 <script>{{ app_js | safe }}</script>
 <script>{{ print_js | safe }}</script>
+<script>{{ present_js | safe }}</script>
 
 </body>
 </html>
