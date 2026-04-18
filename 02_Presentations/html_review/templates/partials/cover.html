@@ -1,12 +1,22 @@
 <section class="cover-page">
   <div class="cover-inner">
     <div class="cover-stripe"></div>
-    <p class="cover-eyebrow">{{ client.run_date }}</p>
+    <p class="cover-eyebrow">Portfolio Review &nbsp;&middot;&nbsp; {{ client.month_display }}</p>
     <h1 class="cover-title">{{ client.display_name }}</h1>
-    <p class="cover-subtitle">{{ client.month_display }} Portfolio Review</p>
+    <p class="cover-subtitle">A month in review &mdash; performance, opportunities, and the story behind the numbers.</p>
     <div class="cover-meta">
-      <span class="cover-meta-label">Prepared by</span>
-      <span class="cover-meta-value">CSI Velocity</span>
+      <div>
+        <span class="cover-meta-label">Prepared for</span>
+        <span class="cover-meta-value">{{ client.display_name }}</span>
+      </div>
+      <div>
+        <span class="cover-meta-label">Prepared by</span>
+        <span class="cover-meta-value">CSI Velocity</span>
+      </div>
+      <div>
+        <span class="cover-meta-label">Issued</span>
+        <span class="cover-meta-value">{{ client.run_date }}</span>
+      </div>
     </div>
   </div>
 </section>
