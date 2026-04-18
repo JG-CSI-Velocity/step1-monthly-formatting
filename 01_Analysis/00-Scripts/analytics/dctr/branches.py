@@ -111,7 +111,7 @@ class DCTRBranches(AnalysisModule):
         return [
             AnalysisResult(
                 slide_id="DCTR-9",
-                title="Branch DCTR Overview",
+                title="Branch Debit Card Take Rate Overview",
                 chart_path=chart_path,
                 excel_data={"Branch All": br_all},
                 notes=(
@@ -414,7 +414,7 @@ class DCTRBranches(AnalysisModule):
         return [
             AnalysisResult(
                 slide_id="A7.10a",
-                title="Branch DCTR: Volume & Rates",
+                title="Branch Debit Card Take Rate: Volume & Rates",
                 chart_path=chart_path,
                 excel_data={"Branch Trend": export},
                 notes=(
@@ -485,7 +485,7 @@ class DCTRBranches(AnalysisModule):
         return [
             AnalysisResult(
                 slide_id="A7.10b",
-                title="Branch DCTR -- TTM",
+                title="Branch Debit Card Take Rate — TTM",
                 chart_path=chart_path,
                 excel_data={"Branch L12M": dr},
                 notes=f"{len(dr)} branches | Best: {l12m_ins.get('best_branch', '?')} ({l12m_ins.get('best_dctr', 0):.1%})",
@@ -601,7 +601,7 @@ class DCTRBranches(AnalysisModule):
         return [
             AnalysisResult(
                 slide_id="A7.13",
-                title="Monthly DCTR Heatmap by Branch",
+                title="Monthly Debit Card Take Rate Heatmap by Branch",
                 chart_path=chart_path,
                 excel_data={"Heatmap": heat_df.reset_index()},
                 notes=f"{len(branches)} branches x {len(months)} months",
