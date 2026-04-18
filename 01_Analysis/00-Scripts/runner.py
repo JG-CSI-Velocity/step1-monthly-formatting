@@ -292,7 +292,63 @@ def run_ars(ctx: SharedContext) -> dict[str, SharedResult]:
     # 7. Copy back to shared context
     ctx.results.update(results)
 
+    # 8. Render the optional HTML review artifact.
+    # Failures here must not abort the pipeline; the HTML is secondary output.
+    try:
+        _build_html_review(ars_ctx, ctx)
+    except Exception as exc:
+        logger.warning("HTML review generation failed: %s", exc)
+
     return results
+
+
+def _build_html_review(ars_ctx: Any, ctx: SharedContext) -> None:
+    """Render an HTML review of every analysis cell.
+
+    Output: {ctx.output_dir}/html_review/index.html. Optional artifact;
+    the pipeline continues on failure.
+    """
+    import sys as _sys
+
+    from ars_analysis.analytics.base import AnalysisResult as ARSResult
+
+    # html_review lives at 02_Presentations/html_review/.
+    # runner.py is at 01_Analysis/00-Scripts/runner.py so parents[2] = repo root.
+    _html_parent = Path(__file__).resolve().parents[2] / "02_Presentations"
+    if str(_html_parent) not in _sys.path:
+        _sys.path.insert(0, str(_html_parent))
+
+    from html_review.builder import build_html
+    from html_review.model import ClientMeta
+
+    all_results: list = []
+    for ars_results in ars_ctx.results.values():
+        if isinstance(ars_results, list):
+            all_results.extend(
+                ar for ar in ars_results if isinstance(ar, ARSResult)
+            )
+
+    if not all_results:
+        logger.info("HTML review: no AnalysisResult objects to render; skipping")
+        return
+
+    month_str = ctx.analysis_date.strftime("%Y-%m") if ctx.analysis_date else ""
+    month_display = ctx.analysis_date.strftime("%B %Y") if ctx.analysis_date else ""
+    run_date = ctx.analysis_date.strftime("%Y-%m-%d") if ctx.analysis_date else ""
+
+    client = ClientMeta(
+        id=str(ctx.client_id or ""),
+        display_name=ctx.client_name or str(ctx.client_id or ""),
+        month=month_str,
+        month_display=month_display,
+        run_date=run_date,
+    )
+
+    out_dir = Path(ctx.output_dir) / "html_review"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    path = build_html(all_results, client, out_dir, embed_images=True)
+    logger.info("HTML review written to %s", path)
 
 
 def _convert_results(ars_ctx: Any) -> dict[str, SharedResult]:
