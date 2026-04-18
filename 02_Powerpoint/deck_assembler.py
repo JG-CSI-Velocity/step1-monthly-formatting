@@ -11,8 +11,10 @@ Usage:
 
 from __future__ import annotations
 
+import argparse
 import calendar
 from pathlib import Path
+import sys
 
 from sections import SECTION_REGISTRY, default_consolidate
 from sections._base import SectionSpec, LAYOUT_CUSTOM, LAYOUT_TITLE, LAYOUT_SECTION, LAYOUT_TWO_CONTENT
@@ -20,18 +22,32 @@ from sections.preamble import build_preamble_slides, build_executive_kpi
 
 # These imports come from 01_Analysis/00-Scripts/output/.
 # On the work PC, ensure the analysis package is on sys.path or installed.
-import sys
 _ANALYSIS_SCRIPTS = Path(__file__).resolve().parent.parent / "01_Analysis" / "00-Scripts"
 if str(_ANALYSIS_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_ANALYSIS_SCRIPTS))
 
-from output.deck_builder import DeckBuilder, SlideContent
-from output.headlines import generate_headline, insights_key
-from output.notes import generate_notes
+# Defer problematic imports until after argparse can handle --help
+DeckBuilder = None
+SlideContent = None
+generate_headline = None
+insights_key = None
+generate_notes = None
+_FALLBACK_TEMPLATE = None
 
 
-# Fallback template (ships with the analysis package)
-_FALLBACK_TEMPLATE = _ANALYSIS_SCRIPTS / "output" / "template" / "2025-CSI-PPT-Template.pptx"
+def _ensure_imports():
+    """Lazy-load imports with external dependencies."""
+    global DeckBuilder, SlideContent, generate_headline, insights_key, generate_notes, _FALLBACK_TEMPLATE
+    if DeckBuilder is None:
+        from output.deck_builder import DeckBuilder as DB, SlideContent as SC
+        from output.headlines import generate_headline as gh, insights_key as ik
+        from output.notes import generate_notes as gn
+        DeckBuilder = DB
+        SlideContent = SC
+        generate_headline = gh
+        insights_key = ik
+        generate_notes = gn
+        _FALLBACK_TEMPLATE = _ANALYSIS_SCRIPTS / "output" / "template" / "2025-CSI-PPT-Template.pptx"
 
 
 # ---------------------------------------------------------------------------
@@ -86,7 +102,7 @@ def _find_prefix_fallback(slide_id: str, registry: list[SectionSpec]) -> tuple[i
     return (LAYOUT_CUSTOM, "screenshot")
 
 
-def _result_to_slide(result, ctx_results: dict, layout_map: dict, registry: list) -> SlideContent | None:
+def _result_to_slide(result, ctx_results: dict, layout_map: dict, registry: list) -> "SlideContent | None":
     """Convert an AnalysisResult to a SlideContent."""
     # Handle pre-built dicts from preamble
     if isinstance(result, dict):
@@ -160,7 +176,7 @@ def _result_to_slide(result, ctx_results: dict, layout_map: dict, registry: list
 # Section divider builder
 # ---------------------------------------------------------------------------
 
-def _section_divider(label: str, subtitle: str = "", layout_index: int = LAYOUT_TITLE) -> SlideContent:
+def _section_divider(label: str, subtitle: str = "", layout_index: int = LAYOUT_TITLE) -> "SlideContent":
     """Create a section divider slide."""
     full_title = f"{label}\n{subtitle}" if subtitle else label
     return SlideContent(slide_type="section", title=full_title, layout_index=layout_index)
@@ -179,6 +195,7 @@ def build_deck(ctx) -> Path | None:
     3. Collect appendix slides
     4. Render via DeckBuilder
     """
+    _ensure_imports()
     if not ctx.all_slides:
         return None
 
@@ -224,8 +241,8 @@ def build_deck(ctx) -> Path | None:
         _notify("Building deck: consolidating slides...")
 
     # Process each section
-    analysis_slides: list[SlideContent] = []
-    all_appendix: list[SlideContent] = []
+    analysis_slides: list = []
+    all_appendix: list = []
 
     for spec in SECTION_REGISTRY:
         raw = list(grouped.get(spec.key, []))
@@ -356,3 +373,28 @@ def build_deck(ctx) -> Path | None:
         if _notify:
             _notify(f"Deck build failed: {exc}")
         return None
+
+
+# ---------------------------------------------------------------------------
+# CLI entry point
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Assemble PowerPoint decks from analysis results."
+    )
+    parser.add_argument(
+        "--persona-module",
+        action="store_true",
+        default=False,
+        help=(
+            "Append the optional 15-slide persona deep-dive appendix "
+            "(Non-User / Climber / Decliner). Off by default."
+        ),
+    )
+    args = parser.parse_args()
+
+    if getattr(args, "persona_module", False):
+        from persona_module import build_persona_appendix
+        extra_ids = build_persona_appendix()
+        print(f"[assembler] --persona-module on: would append {len(extra_ids)} slides")
