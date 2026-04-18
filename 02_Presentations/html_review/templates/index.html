@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>{{ client.display_name }} — {{ client.month_display }} Review</title>
+<style>{{ styles_css | safe }}</style>
+<style>{{ print_css | safe }}</style>
+</head>
+<body data-client="{{ client.id }}" data-month="{{ client.month }}">
+
+<div class="shell">
+
+  {% include 'partials/sidebar.html' %}
+
+  <main class="main">
+
+    <div class="selection-tray">
+      <div class="selection-count">
+        <span class="badge" id="selection-count">0</span>
+        <span>selected for export</span>
+      </div>
+      <div class="selection-spacer"></div>
+      <button class="action-btn" id="btn-clear">Clear</button>
+      <button class="action-btn primary" id="btn-export">Export PDF →</button>
+    </div>
+
+    {% for section in sections %}
+      {% include 'partials/section.html' %}
+    {% endfor %}
+
+  </main>
+
+</div>
+
+<script>{{ app_js | safe }}</script>
+<script>{{ print_js | safe }}</script>
+
+</body>
+</html>
