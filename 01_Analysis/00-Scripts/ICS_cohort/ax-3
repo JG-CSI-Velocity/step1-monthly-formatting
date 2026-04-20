@@ -1,0 +1,42 @@
+
+# ============================================
+# A[X].2 - ICS ACCOUNTS - OPEN ACCOUNTS
+# ============================================
+
+print("\n📊 A[X].2 - Analyzing ICS Accounts in Open Accounts...")
+
+# Clean ICS Account column inside open_accounts
+open_accounts['ICS Account'] = (
+    open_accounts['ICS Account']
+        .fillna('')
+        .astype(str)
+        .str.strip()
+        .str.upper()
+)
+
+# Allowed values
+yes_values = {'YES', 'Y'}
+no_values = {'NO', 'N'}
+
+# Analyze open accounts
+total_open = len(open_accounts)
+
+ics_open = open_accounts[open_accounts['ICS Account'].isin(yes_values)]
+non_ics_open = open_accounts[open_accounts['ICS Account'].isin(no_values)]
+
+# Create summary table
+ax2_open_ics = pd.DataFrame({
+    'Category': ['Total Open Accounts', 'ICS Accounts', 'Non-ICS Accounts'],
+    'Count': [total_open, len(ics_open), len(non_ics_open)]
+})
+
+# FIX: Use FRACTION (0–1) so styler formats correctly
+ax2_open_ics['% of Open'] = (ax2_open_ics['Count'] / total_open).map(lambda x: f"{x:.1%}")
+
+# Display
+display_formatted(ax2_open_ics, "ICS Accounts - Open Accounts")
+
+print(f"\n✅ Analysis completed")
+print(f"   Total Open Accounts: {total_open:,}")
+print(f"   ICS Accounts: {len(ics_open):,} ({len(ics_open)/total_open:.1%})")
+print(f"   Non-ICS Accounts: {len(non_ics_open):,} ({len(non_ics_open)/total_open:.1%})")
