@@ -1,0 +1,19 @@
+## Account Summary
+
+
+# ============================================
+# A[X].1 - ICS ACCOUNTS - TOTAL DATASET
+# ============================================
+
+print("\n📊 A[X].1 - Analyzing ICS Accounts in Total Dataset...")
+
+# (Safety) normalize just in case previous cell wasn't run
+data['ICS Account'] = (
+    data['ICS Account']
+        .fillna('')
+        .astype(str)
+        .str.strip()
+        .str.upper()
+        .map({'YES':'Yes','Y':'Yes','NO':'No','N':'No'})
+        .fillna('No')
+)
