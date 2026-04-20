@@ -1,0 +1,62 @@
+# ============================================
+# A[X].21 - ICS STAT CODE O - AGE DISTRIBUTION
+# ============================================
+
+print("\n📊 A[X].21 - Analyzing ICS Stat Code O Account Age Distribution...")
+
+# Get ICS Stat Code O accounts only
+ics_stat_o = data[(data['ICS Account'] == 'Yes') & (data['Stat Code'] == '0')].copy()
+
+# Calculate account age
+ics_stat_o['Date Opened'] = pd.to_datetime(ics_stat_o['Date Opened'], errors='coerce')
+ics_stat_o['Account Age Days'] = (pd.Timestamp.now() - ics_stat_o['Date Opened']).dt.days
+
+# Define age ranges
+def categorize_account_age(days):
+    if pd.isna(days):
+        return 'Unknown'
+    elif days < 30:
+        return '0-1 month'
+    elif days < 90:
+        return '1-3 months'
+    elif days < 180:
+        return '3-6 months'
+    elif days < 365:
+        return '6-12 months'
+    elif days < 730:
+        return '1-2 years'
+    elif days < 1825:
+        return '2-5 years'
+    elif days < 3650:
+        return '5-10 years'
+    else:
+        return '10+ years'
+
+ics_stat_o['Age Range'] = ics_stat_o['Account Age Days'].apply(categorize_account_age)
+
+# Define age order
+age_order = ['0-1 month', '1-3 months', '3-6 months', '6-12 months', '1-2 years', '2-5 years', '5-10 years', '10+ years', 'Unknown']
+
+# Group by Age Range
+age_dist = ics_stat_o['Age Range'].value_counts().reset_index()
+age_dist.columns = ['Age Range', 'Account Count']
+age_dist['% of Total'] = (age_dist['Account Count'] / len(ics_stat_o)).round(2)
+
+# Reorder by age
+age_dist['Age Range'] = pd.Categorical(age_dist['Age Range'], categories=age_order, ordered=True)
+ax18_age_dist = age_dist.sort_values('Age Range').reset_index(drop=True)
+
+# Add total row
+total_row = pd.DataFrame({
+    'Age Range': ['Total'],
+    'Account Count': [ax18_age_dist['Account Count'].sum()],
+    '% of Total': [1.0]
+})
+
+ax18_age_dist = pd.concat([ax18_age_dist, total_row], ignore_index=True)
+
+# Display
+display_formatted(ax18_age_dist, "ICS Stat Code O - Account Age Distribution")
+
+print(f"\n✅ Analysis completed")
+print(f"   Total ICS Stat O Accounts: {len(ics_stat_o):,}")
