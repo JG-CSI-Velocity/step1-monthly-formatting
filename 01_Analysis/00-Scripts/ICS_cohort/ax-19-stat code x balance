@@ -1,0 +1,78 @@
+
+# ============================================
+# A[X].19 - ICS STAT CODE O - BALANCE TIERS (Formatter Safe)
+# ============================================
+
+print("\n📊 A[X].19 - Analyzing ICS Stat Code O Balance Distribution...")
+
+# ICS Stat O accounts
+ics_stat_o = data[
+    (data['ICS Account'] == 'Yes') &
+    (data['Stat Code'].astype(str).str.upper().str.strip() == '0')
+].copy()
+
+# --- SAFE TIER LABELS (NO LEADING $) ---
+def categorize_tier(balance):
+    if pd.isna(balance):          return 'Unknown'
+    if balance <= 0:              return '0 or Less'
+    if balance < 1000:            return '0 - 1K'
+    if balance < 5000:            return '1K - 5K'
+    if balance < 10000:           return '5K - 10K'
+    if balance < 25000:           return '10K - 25K'
+    if balance < 50000:           return '25K - 50K'
+    if balance < 100000:          return '50K - 100K'
+    if balance < 250000:          return '100K - 250K'
+    return '250K+'
+
+ics_stat_o['Tier'] = ics_stat_o['Avg Bal'].apply(categorize_tier)
+
+# Ordered buckets
+tier_order = [
+    '0 or Less','0 - 1K','1K - 5K','5K - 10K','10K - 25K',
+    '25K - 50K','50K - 100K','100K - 250K','250K+','Unknown'
+]
+
+# Build full base (all tiers must appear)
+base = (
+    pd.DataFrame({'Tier': tier_order})
+      .merge(
+          ics_stat_o.groupby('Tier')['Avg Bal']
+                    .agg(Account_Count='count', Total_Balance='sum'),
+          on='Tier', how='left'
+      )
+)
+
+# Fill nulls
+base['Account_Count'] = base['Account_Count'].fillna(0).astype(int)
+base['Total_Balance'] = base['Total_Balance'].fillna(0.0)
+
+# Percent (fractions → formatter handles as %)
+den_ct = len(ics_stat_o)
+den_bal = ics_stat_o['Avg Bal'].sum()
+
+
+# Final table ordering
+ax17_ics_balance_tiers = base[
+    ['Tier','Account_Count','Total_Balance']
+].copy()
+
+# Append total row (fractions)
+total_row = pd.DataFrame([{
+    'Tier': 'Total',
+    'Account_Count': ax17_ics_balance_tiers['Account_Count'].sum(),
+    'Total_Balance': ax17_ics_balance_tiers['Total_Balance'].sum(),
+}])
+
+ax17_ics_balance_tiers = pd.concat([ax17_ics_balance_tiers, total_row], ignore_index=True)
+
+# Harden types
+for c in ['Account_Count','Total_Balance']:
+    ax17_ics_balance_tiers[c] = pd.to_numeric(ax17_ics_balance_tiers[c], errors='coerce')
+
+# DISPLAY (now 100% safe)
+display_formatted(ax17_ics_balance_tiers, "ICS Stat Code O - Balance Distribution (Safe)")
+
+print(f"\n✅ Analysis completed")
+print(f"   Total ICS Stat O Accounts: {len(ics_stat_o):,}")
+print(f"   Total Balance: ${ics_stat_o['Avg Bal'].sum():,.2f}")
+print(f"   Average Balance: ${ics_stat_o['Avg Bal'].mean():,.2f}")
