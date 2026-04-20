@@ -1,0 +1,70 @@
+
+# ============================================
+# A[X].4 - ICS ACCOUNTS BY STATUS CODE
+# ============================================
+
+print("\n📊 A[X].3 - Analyzing ICS Accounts by Status Code...")
+
+# USER CONFIGURABLE: Set the number of ICS accounts not in data dump
+# Set to 0 if all ICS accounts are in the dump
+ics_not_in_dump = 95  # <-- CHANGE THIS VALUE FOR EACH CLIENT
+
+# Get ICS accounts only (current code uses ICS_Flag)
+ics_only = data[data['ICS Account'] == 'Yes']
+
+# Group by Status Code
+stat_code_dist = (
+    ics_only.groupby('Stat Code')
+            .size()
+            .reset_index(name='Count')
+)
+
+# Use FRACTION (0–1) so display_formatted renders % correctly
+stat_code_dist['% of ICS Accounts'] = (
+    stat_code_dist['Count'] / len(ics_only) if len(ics_only) > 0 else 0
+)
+
+# Optionally add "Not in Data Dump"
+if ics_not_in_dump > 0:
+    not_in_dump = pd.DataFrame({
+        'Stat Code': ['Not in Data Dump'],
+        'Count': [ics_not_in_dump],
+        # FRACTION (0–1), not ×100
+        '% of ICS Accounts': [
+            (ics_not_in_dump / len(ics_only)) if len(ics_only) > 0 else 0
+        ]
+    })
+
+    ax3_ics_stat = pd.concat([stat_code_dist, not_in_dump], ignore_index=True)
+
+    # Sort by count descending, keep "Not in Data Dump" at bottom
+    ax3_ics_stat_sorted = pd.concat([
+        ax3_ics_stat[ax3_ics_stat['Stat Code'] != 'Not in Data Dump'] \
+            .sort_values('Count', ascending=False),
+        ax3_ics_stat[ax3_ics_stat['Stat Code'] == 'Not in Data Dump']
+    ], ignore_index=True).reset_index(drop=True)
+else:
+    ax3_ics_stat_sorted = stat_code_dist.sort_values('Count', ascending=False) \
+                                        .reset_index(drop=True)
+
+# Add total row (Count sum; fraction 1.0 == 100%)
+total_row = pd.DataFrame({
+    'Stat Code': ['Total'],
+    'Count': [ax3_ics_stat_sorted['Count'].sum()],
+    '% of ICS Accounts': [1.0]
+})
+
+ax3_ics_stat_sorted = pd.concat([ax3_ics_stat_sorted, total_row], ignore_index=True)
+
+# (Optional) safety fill to avoid Styler NaN→int issues if any column is empty
+ax3_ics_stat_sorted = ax3_ics_stat_sorted.fillna(0)
+
+# Display
+display_formatted(ax3_ics_stat_sorted, "ICS Accounts - Status Code Distribution")
+
+print(f"\n✅ Analysis completed")
+print(f"   Total ICS Accounts in Dump: {len(ics_only):,}")
+if ics_not_in_dump > 0:
+    print(f"   Not in Data Dump: {ics_not_in_dump:,}")
+    print(f"   Total ICS Accounts (All): {len(ics_only) + ics_not_in_dump:,}")
+print(f"   Unique Status Codes: {len(stat_code_dist)}")
