@@ -1,0 +1,92 @@
+
+# ============================================
+# A[X].17 - ICS STAT CODE O - BALANCE BY AGE RANGE (no decimals)
+# ============================================
+
+print("\n📊 A[X].17 - Analyzing ICS Stat Code O Balance Tiers by Account Age...")
+
+# 1) Filter ICS O (LETTER 'O', robust to case)
+ics_stat_o = data[
+    (data['ICS Account'] == 'Yes') &
+    (data['Stat Code'].astype(str).str.upper().str.strip() == '0')
+].copy()
+
+# 2) Account age buckets
+ics_stat_o['Date Opened'] = pd.to_datetime(ics_stat_o['Date Opened'], errors='coerce')
+ics_stat_o['Account Age Days'] = (pd.Timestamp.now() - ics_stat_o['Date Opened']).dt.days
+
+def _age_bucket(days):
+    if pd.isna(days): return 'Unknown'
+    if days < 30:     return '0-1 month'
+    if days < 90:     return '1-3 months'
+    if days < 180:    return '3-6 months'
+    if days < 365:    return '6-12 months'
+    if days < 730:    return '1-2 years'
+    if days < 1825:   return '2-5 years'
+    if days < 3650:   return '5-10 years'
+    return '10+ years'
+
+ics_stat_o['Age Range'] = ics_stat_o['Account Age Days'].apply(_age_bucket)
+
+# 3) Balance tiers (SAFE: no leading '$' so styler won't treat as currency)
+def _tier(balance):
+    if pd.isna(balance):       return 'Unknown'
+    if balance <= 0:           return '0 or Less'
+    if balance < 1_000:        return '0 - 1K'
+    if balance < 5_000:        return '1K - 5K'
+    if balance < 10_000:       return '5K - 10K'
+    if balance < 25_000:       return '10K - 25K'
+    if balance < 50_000:       return '25K - 50K'
+    if balance < 100_000:      return '50K - 100K'
+    if balance < 250_000:      return '100K - 250K'
+    return '250K+'
+
+ics_stat_o['Tier'] = ics_stat_o['Avg Bal'].apply(_tier)
+
+# 4) Fixed orders
+age_order  = ['0-1 month','1-3 months','3-6 months','6-12 months','1-2 years','2-5 years','5-10 years','10+ years','Unknown']
+tier_order = ['0 or Less','0 - 1K','1K - 5K','5K - 10K','10K - 25K','25K - 50K','50K - 100K','100K - 250K','250K+','Unknown']
+
+# 5) Pivot (Tier x Age)
+pivot = (
+    pd.DataFrame({'Tier': tier_order})
+      .merge(
+          ics_stat_o.groupby(['Tier','Age Range']).size().unstack(fill_value=0),
+          on='Tier', how='left'
+      )
+      .fillna(0)
+)
+
+# Keep columns in the desired age order that exist in this dataset
+age_cols = [c for c in age_order if c in pivot.columns]
+pivot = pivot[['Tier'] + age_cols]
+
+# 6) Add Total
+pivot['Total'] = pivot[age_cols].sum(axis=1)
+
+# 7) Build final DF and append grand total
+ax17_balance_age = pivot.copy()
+
+grand = {'Tier': 'Total'}
+for c in age_cols + ['Total']:
+    grand[c] = int(ax17_balance_age[c].sum())
+ax17_balance_age = pd.concat([ax17_balance_age, pd.DataFrame([grand])], ignore_index=True)
+
+# 8) FORCE integers (no decimals) for every non-label column
+for c in ax17_balance_age.columns:
+    if c != 'Tier':
+        ax17_balance_age[c] = (
+            pd.to_numeric(ax17_balance_age[c], errors='coerce')
+              .fillna(0)
+              .astype('int64')
+        )
+
+# 9) RENAME age columns to end with " Count" so your styler formats them as integers (no .00)
+rename_map = {c: f"{c} Count" for c in age_cols}
+ax17_balance_age_display = ax17_balance_age.rename(columns=rename_map)
+
+# 10) Display
+display_formatted(ax17_balance_age_display, "ICS Stat Code O - Balance Tiers by Account Age Range")
+
+print(f"\n✅ Analysis completed")
+print(f"   Total ICS Stat O Accounts: {len(ics_stat_o):,}")
