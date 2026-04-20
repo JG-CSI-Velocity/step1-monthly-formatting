@@ -1,0 +1,67 @@
+
+# ============================================
+# A[X].11 - ICS SOURCE BY PRODUCT CODE
+# ============================================
+
+print("\n📊 A[X].10 - Analyzing ICS Source by Product Code...")
+
+# Get ICS accounts only
+ics_only = data[data['ICS Account'] == 'Yes'].copy()
+
+# Handle blanks in Source
+ics_only['Source'] = ics_only['Source'].fillna('Blank')
+ics_only.loc[ics_only['Source'] == '', 'Source'] = 'Blank'
+
+# Group by Product Code and Source
+prod_source = ics_only.groupby(['Prod Code', 'Source']).size().unstack(fill_value=0)
+prod_source['Total'] = prod_source.sum(axis=1)
+
+# Calculate percentages per Source
+for col in prod_source.columns:
+    if col != 'Total':
+        prod_source[f'{col} %'] = (
+            prod_source[col] / prod_source['Total']
+        ).round(2)
+
+# Reset index and sort
+ax10_ics_prod_source = prod_source.reset_index()
+ax10_ics_prod_source = (
+    ax10_ics_prod_source
+    .sort_values('Total', ascending=False)
+    .reset_index(drop=True)
+)
+
+# Build total row
+total_row_data = {'Prod Code': ['Total']}
+total_sum = ax10_ics_prod_source['Total'].sum()
+
+for col in ax10_ics_prod_source.columns:
+    if col == 'Prod Code':
+        continue
+    # percentage columns
+    if '%' in col:
+        base_col = col.replace(' %', '')
+        if base_col in ax10_ics_prod_source.columns:
+            total_row_data[col] = [
+                round(
+                    (ax10_ics_prod_source[base_col].sum() / total_sum)
+                    if total_sum > 0 else 0,
+                    2
+                )
+            ]
+        else:
+            total_row_data[col] = [0]
+    # count columns
+    else:
+        total_row_data[col] = [ax10_ics_prod_source[col].sum()]
+
+total_row = pd.DataFrame(total_row_data)
+ax10_ics_prod_source = pd.concat([ax10_ics_prod_source, total_row], ignore_index=True)
+
+# FIX: Prevent NaN → int crash in display_formatted()
+ax10_ics_prod_source = ax10_ics_prod_source.fillna(0)
+
+# Display
+display_formatted(ax10_ics_prod_source, "ICS Source by Product Code")
+
+print(f"\n✅ Analysis completed")
