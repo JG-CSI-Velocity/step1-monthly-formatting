@@ -1,0 +1,34 @@
+# ============================================
+# A[X].8 - ICS STAT CODE O - DEBIT BY BRANCH
+# ============================================
+
+print("\n📊 A[X].7 - Analyzing Debit Distribution by Branch for ICS Stat Code O...")
+
+# Get ICS accounts with Stat Code O
+ics_stat_o = data[(data['ICS Account'] == 'Yes') & (data['Stat Code'] == '0')]
+
+# Group by Branch and Debit
+branch_debit = ics_stat_o.groupby(['Branch', 'Debit?']).size().unstack(fill_value=0)
+branch_debit['Total'] = branch_debit.sum(axis=1)
+branch_debit['% with Debit'] = (branch_debit.get('Yes', 0) / branch_debit['Total']).round(2)
+
+# Reset index and sort by total descending
+ax7_ics_branch_debit = branch_debit.reset_index()
+ax7_ics_branch_debit = ax7_ics_branch_debit.sort_values('Total', ascending=False).reset_index(drop=True)
+
+# Add total row
+total_row = pd.DataFrame({
+    'Branch': ['Total'],
+    'No': [ax7_ics_branch_debit['No'].sum()],
+    'Yes': [ax7_ics_branch_debit['Yes'].sum()],
+    'Total': [ax7_ics_branch_debit['Total'].sum()],
+    '% with Debit': [(ax7_ics_branch_debit['Yes'].sum() / ax7_ics_branch_debit['Total'].sum()) if ax7_ics_branch_debit['Total'].sum() > 0 else 0]
+})
+total_row['% with Debit'] = total_row['% with Debit'].round(2)
+
+ax7_ics_branch_debit = pd.concat([ax7_ics_branch_debit, total_row], ignore_index=True)
+
+# Display
+display_formatted(ax7_ics_branch_debit, "ICS Stat Code O - Debit by Branch")
+
+print(f"\n✅ Analysis completed")
