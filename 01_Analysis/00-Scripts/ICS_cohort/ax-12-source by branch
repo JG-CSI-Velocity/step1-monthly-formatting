@@ -1,0 +1,72 @@
+
+# ============================================
+# A[X].12 - ICS SOURCE BY BRANCH
+# ============================================
+
+print("\n📊 A[X].12 - Analyzing ICS Source by Branch...")
+
+# Get ICS accounts only
+ics_only = data[data['ICS Account'] == 'Yes'].copy()
+
+# Handle blanks in Source
+ics_only['Source'] = ics_only['Source'].fillna('Blank')
+ics_only.loc[ics_only['Source'] == '', 'Source'] = 'Blank'
+
+# Group by Branch and Source
+branch_source = ics_only.groupby(['Branch', 'Source']).size().unstack(fill_value=0)
+branch_source['Total'] = branch_source.sum(axis=1)
+
+# Calculate percentages for each Source
+for col in branch_source.columns:
+    if col != 'Total':
+        branch_source[f'{col} %'] = (
+            branch_source[col] / branch_source['Total']
+        ).round(2)
+
+# Add Total % column (percent of all ICS accounts)
+total_ics = len(ics_only)
+branch_source['Total %'] = (branch_source['Total'] / total_ics).round(2)
+
+# Reset index and sort
+ax11_ics_branch_source = branch_source.reset_index()
+ax11_ics_branch_source = (
+    ax11_ics_branch_source
+    .sort_values('Total', ascending=False)
+    .reset_index(drop=True)
+)
+
+# Construct total row
+total_row_data = {'Branch': ['Total']}
+grand_total = ax11_ics_branch_source['Total'].sum()
+
+for col in ax11_ics_branch_source.columns:
+    if col == 'Branch':
+        continue
+
+    if col == 'Total %':
+        total_row_data[col] = [1.0]
+
+    elif '%' in col:
+        base_col = col.replace(' %', '')
+        if base_col in ax11_ics_branch_source.columns:
+            pct_value = (
+                ax11_ics_branch_source[base_col].sum() / grand_total
+                if grand_total > 0 else 0
+            )
+            total_row_data[col] = [round(pct_value, 1)]
+        else:
+            total_row_data[col] = [0]
+
+    else:
+        total_row_data[col] = [ax11_ics_branch_source[col].sum()]
+
+total_row = pd.DataFrame(total_row_data)
+ax11_ics_branch_source = pd.concat([ax11_ics_branch_source, total_row], ignore_index=True)
+
+# Prevent NaN → int conversion crash in display_formatted()
+ax11_ics_branch_source = ax11_ics_branch_source.fillna(0)
+
+# Display
+display_formatted(ax11_ics_branch_source, "ICS Source by Branch")
+
+print(f"\n✅ Analysis completed")
