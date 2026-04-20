@@ -1,0 +1,29 @@
+
+# ============================================
+# A[X].1 - ICS ACCOUNTS - TOTAL DATASET
+# ============================================
+
+print("\n📊 A[X].1 - Analyzing ICS Accounts in Total Dataset...")
+
+
+# Analyze all accounts
+total_accounts  = len(data)
+ics_accounts    = data[data['ICS Account'] == 'Yes']
+non_ics_accounts= data[data['ICS Account'] == 'No']
+
+# Create summary table with FRACTIONS (0.00–1.00)
+ax1_total_ics = pd.DataFrame({
+    'Category': ['Total Accounts', 'ICS Accounts', 'Non-ICS Accounts'],
+    'Count': [total_accounts, len(ics_accounts), len(non_ics_accounts)],
+})
+
+
+ax1_total_ics['% of Total'] = (ax1_total_ics['Count'] / total_accounts).map(lambda x: f"{x:.2%}")
+display_formatted(ax1_total_ics, "ICS Accounts - Total Dataset")
+
+
+
+print(f"\n✅ Analysis completed")
+print(f"   Total Accounts: {total_accounts:,}")
+print(f"   ICS Accounts: {len(ics_accounts):,} ({(len(ics_accounts)/total_accounts):.2%})")
+print(f"   Non-ICS Accounts: {len(non_ics_accounts):,} ({(len(non_ics_accounts)/total_accounts):.2%})")
