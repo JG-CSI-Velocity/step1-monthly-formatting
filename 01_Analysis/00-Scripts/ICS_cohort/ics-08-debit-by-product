@@ -25,7 +25,7 @@ prod_debit['% with Debit'] = (
 
 debit_by_product = (
     prod_debit.reset_index()
-              .sort_values('Total', ascending=False)
+              .sort_values('% with Debit', ascending=False, na_position='last')
               .reset_index(drop=True)
 )
 
