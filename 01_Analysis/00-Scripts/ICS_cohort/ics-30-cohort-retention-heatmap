@@ -12,21 +12,24 @@ import seaborn as sns
 print(f"\n📊 ics-30 — Cohort retention heatmap for ICS {STAT_LABEL}...")
 
 def _retention_matrix(milestones_df):
-    _keep = [m for m in ['M1', 'M3', 'M6', 'M12']
-             if f'{m} Activation %' in milestones_df.columns
-             or f'{m} Retention %'  in milestones_df.columns]
-    if not _keep:
+    # Auto-discover whatever M* Activation %/Retention % columns exist.
+    # Sorted by the milestone number so M1 < M3 < M6 < M9 < M12 < M18 < M24.
+    import re as _re_h
+    _found = {}
+    for _c in milestones_df.columns:
+        _m = _re_h.match(r'^M(\d+) (Activation|Retention) %$', _c)
+        if _m:
+            _found[int(_m.group(1))] = _c
+    if not _found:
         raise ValueError(
-            "No M* Activation %/Retention % columns found in cohort_milestones. "
+            "No M* Activation %/Retention % columns found. "
             "Run ics-31-cohort-milestones first."
         )
-    _pct_col = lambda m: (
-        f'{m} Activation %' if f'{m} Activation %' in milestones_df.columns
-        else f'{m} Retention %'
-    )
-    mat = milestones_df[['Opening Month'] + [_pct_col(m) for m in _keep]].copy()
-    for m in _keep:
-        _c = _pct_col(m)
+    _keep_nums = sorted(_found.keys())
+    _keep = [f'M{n}' for n in _keep_nums]
+    _cols = [_found[n] for n in _keep_nums]
+    mat = milestones_df[['Opening Month'] + _cols].copy()
+    for _c in _cols:
         _s = pd.to_numeric(mat[_c], errors='coerce')
         # Accept both fraction (0-1) and percent (0-100) scales.
         if _s.dropna().gt(1).mean() > 0.5:
