@@ -152,34 +152,63 @@ def _collapse_to_annual(monthly_tbl):
 
 
 # ---------------------------------------------------------------------------
-# Pre-format the whole table as strings: numeric -> '66.7%', NaN -> ''.
-# display_formatted won't re-parse strings that already contain '%', and it
-# leaves '' alone.  This is the clean way to stop NaN cells from ever
-# rendering in the table.  (Memory: display_formatted dispatches by column
-# name and chokes on mixed numeric + string; pre-format to string across
-# the whole column to sidestep that entirely.)
+# Render via pandas Styler directly (bypasses display_formatted).
+# display_formatted kept re-parsing pre-formatted strings and leaking NaN
+# into the cells; Styler gives us explicit control so NaN renders as ''
+# and numeric fractions render as '66.7%'.
 # ---------------------------------------------------------------------------
-def _stringify(tbl):
-    out = tbl.copy()
-    # Milestone columns -> % strings, NaN -> ''
-    for _, _, disp in _MILESTONES:
-        out[disp] = pd.to_numeric(out[disp], errors='coerce').map(
-            lambda v: f"{v * 100:.1f}%" if pd.notna(v) else ''
-        )
-    # Cohort Size -> comma-formatted int string
-    if 'Cohort Size' in out.columns:
-        out['Cohort Size'] = pd.to_numeric(out['Cohort Size'], errors='coerce').map(
-            lambda v: f"{int(v):,}" if pd.notna(v) else ''
-        )
-    return out
+def _render_activation(tbl, caption):
+    pct_cols = [d for _, _, d in _MILESTONES if d in tbl.columns]
+
+    def _fmt_pct(v):
+        return f"{v * 100:.1f}%" if pd.notna(v) else ''
+
+    def _fmt_int(v):
+        return f"{int(v):,}" if pd.notna(v) else ''
+
+    format_dict = {c: _fmt_pct for c in pct_cols}
+    if 'Cohort Size' in tbl.columns:
+        format_dict['Cohort Size'] = _fmt_int
+
+    styled = (
+        tbl.style
+        .hide(axis='index')
+        .format(format_dict, na_rep='')
+        .set_properties(**{
+            'font-size': '13px',
+            'text-align': 'center',
+            'border': '1px solid #E9ECEF',
+            'padding': '7px 10px',
+        })
+        .set_table_styles([
+            {'selector': 'th', 'props': [
+                ('background-color', '#2D3748'),
+                ('color', 'white'),
+                ('font-size', '14px'),
+                ('font-weight', 'bold'),
+                ('text-align', 'center'),
+                ('padding', '8px 10px'),
+            ]},
+            {'selector': 'caption', 'props': [
+                ('font-size', '20px'),
+                ('font-weight', 'bold'),
+                ('color', '#1A202C'),
+                ('text-align', 'left'),
+                ('padding-bottom', '10px'),
+                ('caption-side', 'top'),
+            ]},
+        ])
+        .set_caption(caption)
+    )
+    display(styled)
 
 
 # ---- ICS target-Stat debit cohort — monthly --------------------------------
 _ics = ics_cohort_debit(data)
 ics_activation_by_cohort = _monthly_activation_table(_ics, 'ICS')
-display_formatted(
-    _stringify(ics_activation_by_cohort),
-    f"ICS {STAT_LABEL} (Debit) — Activation % by Opening Month × Milestone"
+_render_activation(
+    ics_activation_by_cohort,
+    f"ICS {STAT_LABEL} (Debit) — Activation % by Opening Month × Milestone",
 )
 
 # ---- Matched Non-ICS-with-debit cohort — ANNUAL ----------------------------
@@ -188,9 +217,9 @@ if 'Debit?' in _non.columns:
     _non = _non[_non['Debit?'] == 'Yes']
 _non_monthly = _monthly_activation_table(_non, 'Non-ICS')
 nonics_activation_by_cohort = _collapse_to_annual(_non_monthly)
-display_formatted(
-    _stringify(nonics_activation_by_cohort),
-    "Non-ICS (Debit) — Activation % by Opening Year × Milestone"
+_render_activation(
+    nonics_activation_by_cohort,
+    "Non-ICS (Debit) — Activation % by Opening Year × Milestone",
 )
 
 # ---- Weighted-average summary (standalone formatted table) -----------------
@@ -205,9 +234,9 @@ summary_rows = [
 ]
 activation_summary = pd.DataFrame(summary_rows)
 
-display_formatted(
-    _stringify(activation_summary),
-    "Weighted-Average Activation Rates — ICS vs Non-ICS"
+_render_activation(
+    activation_summary,
+    "Weighted-Average Activation Rates — ICS vs Non-ICS",
 )
 
 # ---- Delta print-out (Δ in percentage points) ------------------------------
