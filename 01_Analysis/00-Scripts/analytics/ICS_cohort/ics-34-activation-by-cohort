@@ -151,11 +151,34 @@ def _collapse_to_annual(monthly_tbl):
     return annual
 
 
+# ---------------------------------------------------------------------------
+# Pre-format the whole table as strings: numeric -> '66.7%', NaN -> ''.
+# display_formatted won't re-parse strings that already contain '%', and it
+# leaves '' alone.  This is the clean way to stop NaN cells from ever
+# rendering in the table.  (Memory: display_formatted dispatches by column
+# name and chokes on mixed numeric + string; pre-format to string across
+# the whole column to sidestep that entirely.)
+# ---------------------------------------------------------------------------
+def _stringify(tbl):
+    out = tbl.copy()
+    # Milestone columns -> % strings, NaN -> ''
+    for _, _, disp in _MILESTONES:
+        out[disp] = pd.to_numeric(out[disp], errors='coerce').map(
+            lambda v: f"{v * 100:.1f}%" if pd.notna(v) else ''
+        )
+    # Cohort Size -> comma-formatted int string
+    if 'Cohort Size' in out.columns:
+        out['Cohort Size'] = pd.to_numeric(out['Cohort Size'], errors='coerce').map(
+            lambda v: f"{int(v):,}" if pd.notna(v) else ''
+        )
+    return out
+
+
 # ---- ICS target-Stat debit cohort — monthly --------------------------------
 _ics = ics_cohort_debit(data)
 ics_activation_by_cohort = _monthly_activation_table(_ics, 'ICS')
 display_formatted(
-    ics_activation_by_cohort,
+    _stringify(ics_activation_by_cohort),
     f"ICS {STAT_LABEL} (Debit) — Activation % by Opening Month × Milestone"
 )
 
@@ -166,7 +189,7 @@ if 'Debit?' in _non.columns:
 _non_monthly = _monthly_activation_table(_non, 'Non-ICS')
 nonics_activation_by_cohort = _collapse_to_annual(_non_monthly)
 display_formatted(
-    nonics_activation_by_cohort,
+    _stringify(nonics_activation_by_cohort),
     "Non-ICS (Debit) — Activation % by Opening Year × Milestone"
 )
 
@@ -181,11 +204,9 @@ summary_rows = [
      **{disp: _non_avg[disp] for _, _, disp in _MILESTONES}},
 ]
 activation_summary = pd.DataFrame(summary_rows)
-for _, _, disp in _MILESTONES:
-    activation_summary[disp] = pd.to_numeric(activation_summary[disp], errors='coerce')
 
 display_formatted(
-    activation_summary,
+    _stringify(activation_summary),
     "Weighted-Average Activation Rates — ICS vs Non-ICS"
 )
 
