@@ -1,0 +1,190 @@
+
+# ============================================
+# A[X].28 - ICS STAT CODE O - COHORT ANALYSIS (FINAL FORMATTER-SAFE)
+# ============================================
+
+print("\n📊 A[X].28 - Analyzing ICS Stat Code O Cohort Behavior...")
+
+import numpy as np
+import pandas as pd
+import re
+
+# 1) Load ICS O debit accounts
+ics_stat_o = data[
+    (data['ICS Account'] == 'Yes') &
+    (data['Stat Code'].astype(str).str.upper().str.strip() == '0') &
+    (data['Debit?'] == 'Yes')
+].copy()
+
+ics_stat_o['Date Opened']   = pd.to_datetime(ics_stat_o['Date Opened'], errors='coerce')
+ics_stat_o['Opening Month'] = ics_stat_o['Date Opened'].dt.to_period('M').astype(str)
+
+# 2) Keep only cohorts from 2025-01 forward
+ics_stat_o = ics_stat_o[ics_stat_o['Opening Month'] >= "2025-01"].copy()
+
+# Unique opening months (≥ 2025-01)
+opening_months = sorted(ics_stat_o['Opening Month'].unique())
+
+# 3) We track these key milestones (cohort age in months)
+key_months = [1, 3, 6, 12]
+
+cohort_rows = []
+
+# ----------------------------------------
+# Helper – compute metrics for a milestoned month
+# ----------------------------------------
+def extract_month_metrics(opening_dt, cohort_df, offset, prefix):
+    """
+    offset = 0 (M1), 2 (M3), 5 (M6), 11 (M12)
+    prefix = 'M1','M3','M6','M12'
+    Returns numeric values or NaN for missing.
+    """
+    tag_dt = opening_dt + pd.DateOffset(months=offset)
+    tag    = tag_dt.strftime('%b%y')     # e.g. 'Apr25'
+
+    s_col  = f"{tag} Swipes"
+    d_col  = f"{tag} Spend"
+
+    # Only if the actual month exists in last_12_months AND column exists
+    if (tag in last_12_months) and (s_col in cohort_df.columns) and (d_col in cohort_df.columns):
+        sw = pd.to_numeric(cohort_df[s_col], errors='coerce').fillna(0)
+        sp = pd.to_numeric(cohort_df[d_col], errors='coerce').fillna(0)
+
+        total_swipes = sw.sum()
+        total_spend  = sp.sum()
+        active_cnt   = (sw > 0).sum()
+
+        return {
+            f"{prefix} Active":      int(active_cnt),
+            f"{prefix} Retention %": (active_cnt / len(cohort_df)) if len(cohort_df) else np.nan,
+            f"{prefix} Avg Swipes":  sw.mean() if total_swipes > 0 else np.nan,
+            f"{prefix} Avg Spend":   sp.mean() if total_spend > 0 else np.nan
+        }
+    else:
+        # Missing month → return NaN (styler renders blank)
+        return {
+            f"{prefix} Active":      np.nan,
+            f"{prefix} Retention %": np.nan,
+            f"{prefix} Avg Swipes":  np.nan,
+            f"{prefix} Avg Spend":   np.nan
+        }
+
+# ----------------------------------------
+# BUILD COHORT TABLE
+# ----------------------------------------
+
+for op_month in opening_months:
+    cohort = ics_stat_o[ics_stat_o['Opening Month'] == op_month].copy()
+    if cohort.empty:
+        continue
+
+    opening_dt = pd.to_datetime(op_month)
+
+    row = {
+        "Opening Month": op_month,
+        "Cohort Size":   int(len(cohort)),
+        "Avg Current Balance": cohort["Curr Bal"].mean()
+    }
+
+    # Add each milestone block
+    row.update(extract_month_metrics(opening_dt, cohort, 0,  "M1"))
+    row.update(extract_month_metrics(opening_dt, cohort, 2,  "M3"))
+    row.update(extract_month_metrics(opening_dt, cohort, 5,  "M6"))
+    row.update(extract_month_metrics(opening_dt, cohort, 11, "M12"))
+
+    cohort_rows.append(row)
+
+ax24_cohort_analysis = pd.DataFrame(cohort_rows)
+
+# -------------------------------------------------------
+# 4) CLEANUP — ensure everything is numeric or NaN
+# -------------------------------------------------------
+
+# Replace text 'nan', 'None', '' with actual NaN
+ax24_cohort_analysis = ax24_cohort_analysis.replace(
+    to_replace=['nan', 'NaN', 'None', ''], value=np.nan
+)
+
+# Identify data columns
+value_cols = [c for c in ax24_cohort_analysis.columns if c != "Opening Month"]
+
+# Apply dtype rules:
+for col in value_cols:
+
+    # Cohort Size → int
+    if col == "Cohort Size":
+        ax24_cohort_analysis[col] = (
+            pd.to_numeric(ax24_cohort_analysis[col], errors='coerce')
+              .round(0)
+              .astype("Int64")
+        )
+        continue
+
+    # Active counts → int where possible
+    if re.search(r"Active$", col):
+        ax24_cohort_analysis[col] = (
+            pd.to_numeric(ax24_cohort_analysis[col], errors='coerce')
+              .round(0)
+              .astype("Int64")
+        )
+        continue
+
+    # Spend / Balances → floats
+    if re.search(r"Balance|Spend$", col):
+        ax24_cohort_analysis[col] = (
+            pd.to_numeric(ax24_cohort_analysis[col], errors='coerce')
+              .astype(float)
+              .round(2)
+        )
+        continue
+
+    # Avg Swipes → floats
+    if re.search(r"Avg Swipes$", col):
+        ax24_cohort_analysis[col] = (
+            pd.to_numeric(ax24_cohort_analysis[col], errors='coerce')
+              .astype(float)
+              .round(2)
+        )
+        continue
+
+    # Retention % → float fraction (0–1)
+    if re.search(r"Retention %$", col):
+        s = pd.to_numeric(ax24_cohort_analysis[col], errors='coerce')
+        # If data appears 0–100, convert to 0–1
+        if s.dropna().gt(1).mean() > 0.5:
+            s = s / 100.0
+        ax24_cohort_analysis[col] = s
+        continue
+
+# -------------------------------------------------------
+# 5) Display — NaN stays NaN, ARS styler displays blank
+# -------------------------------------------------------
+
+# ---- FIX: Convert retention NaN to blank strings (display-safe only) ----
+ax24_display = ax24_cohort_analysis.copy()
+
+for col in ax24_display.columns:
+    if col.endswith("Retention %"):
+        # keep real values numeric (float)
+        # replace NaN with blank '' so the styler does NOT try to apply percentage formatting
+        ax24_display[col] = ax24_display[col].apply(
+            lambda v: v if pd.notna(v) else ''
+        )
+
+# Now use display-safe version
+display_formatted(
+    ax24_display,
+    "ICS Stat Code O - Cohort Analysis (Key Milestones)"
+)
+
+# Print summary
+print(f"\n✅ Analysis completed")
+print(f"   Total Cohorts Analyzed: {len(ax24_cohort_analysis)}")
+print(f"   Date Range: {opening_months[0]} to {opening_months[-1]}")
+
+print("\n📈 Average Retention Rates:")
+for m in [1, 3, 6, 12]:
+    col = f"M{m} Retention %"
+    if col in ax24_cohort_analysis.columns:
+        avg_val = ax24_cohort_analysis[col].mean(skipna=True)
+        print(f"   M{m}: {avg_val:.1%}")
