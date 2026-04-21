@@ -85,8 +85,9 @@ ax.text(0.98, 0.95, f"Log-rank test: {_sig}",
                   edgecolor='#cccccc', linewidth=1))
 
 plt.tight_layout()
-fig.savefig("survival_curves.png", dpi=300, bbox_inches='tight')
+fig.savefig("survival_curves.png", dpi=160, bbox_inches='tight')
 plt.show()
+plt.close(fig)                                      # free memory
 
 # Median survival summary
 _med_ics = _kmf_ics.median_survival_time_

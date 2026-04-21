@@ -100,8 +100,9 @@ import matplotlib.ticker as _mtick
 ax.yaxis.set_major_formatter(_mtick.PercentFormatter(decimals=0))
 
 plt.tight_layout()
-fig.savefig("ttfs_distribution.png", dpi=300, bbox_inches='tight')
+fig.savefig("ttfs_distribution.png", dpi=160, bbox_inches='tight')
 plt.show()
+plt.close(fig)                                      # free memory
 
 print(f"\n✅ Rendered (saved: ttfs_distribution.png)")
 print(f"   ICS  median TTFS : {_ics_med:.1f} months  ({_ics_total - _ics_never:,}/{_ics_total:,} swiped)")

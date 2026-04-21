@@ -40,16 +40,20 @@ def _retention_matrix(milestones_df):
     return mat.sort_index()
 
 def cohort_retention_heatmap(milestones_df, title=None, cmap='Blues',
-                             save_path=None, show=True, newest_on_top=False):
+                             save_path=None, show=True, newest_on_top=False,
+                             max_rows=40):
     _mat = _retention_matrix(milestones_df)
+    # Cap row count — Jupyter crashes on 50+-row heatmaps due to image size.
+    if len(_mat) > max_rows:
+        _mat = _mat.tail(max_rows)
     if newest_on_top:
         _mat = _mat.iloc[::-1]
     _pct = _mat * 100.0
     _mask = _pct.isna()
 
     _n_rows = len(_pct)
-    _fig_h  = max(4, 0.46 * _n_rows)
-    fig, ax = plt.subplots(figsize=(9, _fig_h), dpi=140)
+    _fig_h  = min(max(4, 0.38 * _n_rows), 16)     # cap height at 16 inches
+    fig, ax = plt.subplots(figsize=(9, _fig_h), dpi=110)   # lower DPI
 
     sns.heatmap(
         _pct, mask=_mask, ax=ax, cmap=cmap, vmin=0, vmax=100,
@@ -78,10 +82,11 @@ def cohort_retention_heatmap(milestones_df, title=None, cmap='Blues',
 
     plt.tight_layout()
     if save_path:
-        fig.savefig(save_path, dpi=300, bbox_inches='tight')
+        fig.savefig(save_path, dpi=160, bbox_inches='tight')
     if show:
         plt.show()
-    return fig, ax
+    plt.close(fig)                                  # free memory
+    return None
 
 # Self-sufficient: get the milestones frame from the kernel if it exists,
 # otherwise build it now via the shared helper. No dependency on ics-31
@@ -89,7 +94,7 @@ def cohort_retention_heatmap(milestones_df, title=None, cmap='Blues',
 _milestones_frame, _src_name = get_or_build_cohort_milestones()
 print(f"   (milestones source: {_src_name})")
 
-cohort_retention_heatmap(_milestones_frame)
-cohort_retention_heatmap(_milestones_frame, save_path="cohort_heatmap.png", show=False)
+# Single render — show AND save in one pass so we don't build two figures.
+cohort_retention_heatmap(_milestones_frame, save_path="cohort_heatmap.png")
 
 print(f"\n✅ Heatmap rendered (saved: cohort_heatmap.png)")
