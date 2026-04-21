@@ -1,0 +1,86 @@
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+def _build_retention_matrix(ax24_df):
+    keep = [m for m in ['M1','M3','M6','M12'] if f'{m} Retention %' in ax24_df.columns]
+    if not keep:
+        raise ValueError("No retention columns (M1/M3/M6/M12 Retention %) found.")
+
+    mat = ax24_df[['Opening Month'] + [f'{m} Retention %' for m in keep]].copy()
+    # coerce & auto-convert 0–100 -> 0–1
+    for c in [f'{m} Retention %' for m in keep]:
+        s = pd.to_numeric(mat[c], errors='coerce')
+        if s.dropna().gt(1).mean() > 0.5:
+            s = s / 100.0
+        mat[c] = s
+    mat = mat.set_index('Opening Month')
+    mat.columns = keep
+    return mat.sort_index()  # oldest→newest; use ascending=False for newest at top
+
+
+def cohort_activation_heatmap(ax24_df, title="Cohort Activation Heatmap",
+                              cmap="Blues", save_path=None, show=True, newest_on_top=False):
+    ret_mat = _build_retention_matrix(ax24_df)
+    if newest_on_top:
+        ret_mat = ret_mat.iloc[::-1]
+
+    # Prepare data in 0–100 for display, but keep NaN where missing
+    data = ret_mat * 100.0
+    mask = data.isna()
+
+    # Figure size scales with # cohorts for readability
+    n_rows = len(data)
+    fig_h = max(4, 0.46 * n_rows)
+    fig_w = 9
+
+    fig, ax = plt.subplots(figsize=(fig_w, fig_h), dpi=140)
+    hm = sns.heatmap(
+        data, mask=mask, ax=ax, cmap=cmap, vmin=0, vmax=100,
+        linewidths=0.6, linecolor='white',
+        cbar=True, cbar_kws={'label':'Activation (%)','shrink':0.9,'ticks':np.arange(0,101,20)},
+        annot=False  # we'll add our own annotations for better contrast
+    )
+
+    # Title/labels
+    ax.set_title(title, fontsize=16, weight='bold', pad=8)
+    ax.set_xlabel("Milestone", fontsize=12)
+    ax.set_ylabel("Opening Month", fontsize=12)
+    ax.tick_params(axis='x', labelsize=11)
+    ax.tick_params(axis='y', labelsize=11)
+
+    # ---- Data labels (robust) ----
+    # Choose text color based on relative intensity so labels stay readable
+    for i in range(data.shape[0]):
+        for j in range(data.shape[1]):
+            val = data.iat[i, j]
+            if pd.isna(val):
+                continue
+            # normalize 0..100 to 0..1
+            bg = (val - 0.0) / 100.0
+            txt_color = 'white' if bg > 0.55 else '#1f2d3a'
+            ax.text(j + 0.5, i + 0.5, f"{val:.1f}", ha='center', va='center',
+                    fontsize=10, color=txt_color)
+
+    # Tighten layout & colorbar font
+    cbar = hm.collections[0].colorbar
+    cbar.ax.tick_params(labelsize=10)
+
+    plt.tight_layout()
+
+    # Save inside the function (before show, while the figure is active)
+    if save_path:
+        fig.savefig(save_path, dpi=300, bbox_inches="tight")
+
+    if show:
+        plt.show()
+
+    return fig, ax  # lets you save again or add overlays later
+
+# Show on screen (labels included)
+fig, ax = cohort_activation_heatmap(ax24_cohort_analysis)
+
+# Save to file (labels preserved). Either pass save_path in call…
+cohort_activation_heatmap(ax24_cohort_analysis, save_path="cohort_heatmap.png")
