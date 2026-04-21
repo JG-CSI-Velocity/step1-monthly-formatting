@@ -145,7 +145,10 @@ else:
             fig.text(0.5, -0.02,
                      f'Scope: competitor_txns from competition/02, '
                      f'ecosystems {"included" if INCLUDE_ECOSYSTEMS else "excluded"}.  '
-                     f'Denominators: {ics_total:,} ICS / {non_total:,} Non-ICS accounts.',
+                     f'Denominators: {ics_total:,} ICS / {non_total:,} Non-ICS accounts.  '
+                     f'CAVEAT: ICS accounts are newer than the Non-ICS pool on average, so '
+                     f'ICS has had less time to accumulate competitor transactions -- under-reach '
+                     f'is partly an age artifact, not purely a loyalty signal.',
                      ha='center', fontsize=10, color=GEN_COLORS['muted'], style='italic')
             plt.tight_layout()
             plt.savefig('cross_cohort_50_competition_overlay.png', dpi=160, bbox_inches='tight')

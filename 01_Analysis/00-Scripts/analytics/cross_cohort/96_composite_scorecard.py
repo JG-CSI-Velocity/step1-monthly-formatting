@@ -2,14 +2,20 @@
 # CROSS-COHORT 96 -- Composite Scorecard
 # ===========================================================================
 # One row per ICS channel (REF, DM, ICS-Unknown, Non-ICS).
-# One column per KPI the deck actually needs:
 #
-#   Accounts                      | count
+# SCOPE: accounts opened on/after the first observable Swipes month.
+# Old accounts have no observable first-90-days and no meaningful
+# early-life tier, so the "Activated by day 90" and "Climbed >=1 tier"
+# columns would be artificially 0/nan for them.  Scope-gating avoids
+# that apples-to-oranges drag.
+#
+# Columns:
+#   Accounts                      | count (in scope)
 #   Activated by day 90           | % with first swipe within 90 days of open
 #   Mailed (>=1 ARS offer)        | % of channel
 #   Response rate (of mailed)     | % responded / mailed
 #   Avg responses per mailed acct | mean
-#   Climbed >=1 swipe tier        | %
+#   Climbed >=1 swipe tier        | % (uses scope-gated tier from cell 01)
 #   Avg monthly Spend             | mean of MonthlySpend12 (if present)
 #   Avg balance                   | mean Avg Bal (if present)
 #   At-risk                       | % in attrition_df Declining+Dormant (if present)
@@ -31,10 +37,36 @@ else:
                       'muted': '#718096', 'primary': '#2D3748'}
 
     # ------------------------------------------------------------------
+    # Scope gate -- accounts opened on/after first Swipes month
+    # ------------------------------------------------------------------
+    _MONTH_MAP = {'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
+                  'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12}
+
+    if 'CROSS_SWIPE_COLS' in dir() and CROSS_SWIPE_COLS:
+        def _ts(c):
+            t = c.replace(' Swipes', '').strip()
+            return pd.Timestamp(year=2000 + int(t[3:]), month=_MONTH_MAP[t[:3]], day=1)
+        _sw_ts = np.array([_ts(c) for c in CROSS_SWIPE_COLS]).astype('datetime64[ns]')
+        _first_swipe_month = pd.Timestamp(_sw_ts[0])
+    else:
+        _sw_ts = None
+        _first_swipe_month = None
+
+    _base = cross_df.copy()
+    _n0 = len(_base)
+    if _first_swipe_month is not None:
+        _base = _base[_base['open_date'].notna()
+                      & (_base['open_date'] >= _first_swipe_month)].copy()
+    _n1 = len(_base)
+    print(f'    Scope: opened on/after {_first_swipe_month.date() if _first_swipe_month is not None else "n/a"}  '
+          f'({_n1:,} / {_n0:,} accounts)')
+    print()
+
+    _scope = _base
+
+    # ------------------------------------------------------------------
     # Optional joins -- attrition + balance/spend from rewards_df
     # ------------------------------------------------------------------
-    _scope = cross_df.copy()
-
     if 'attrition_df' in dir():
         _ad = attrition_df[['account_number', 'risk_tier']].copy()
         _ad.columns = ['acct_number', 'risk_tier']
@@ -56,20 +88,17 @@ else:
             _rw[c] = pd.to_numeric(_rw[c], errors='coerce')
         _scope = _scope.merge(_rw, on='acct_number', how='left')
 
-    # Activation-by-90-days: use days_to_first_mail's SIBLING -- we have
-    # CROSS_SWIPE_COLS from cell 01. Recompute lightly here.
-    _MONTH_MAP = {'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
-                  'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12}
-    if 'CROSS_SWIPE_COLS' in dir() and CROSS_SWIPE_COLS:
-        def _ts(c):
-            t = c.replace(' Swipes', '').strip()
-            return pd.Timestamp(year=2000 + int(t[3:]), month=_MONTH_MAP[t[:3]], day=1)
-        _sw_ts = np.array([_ts(c) for c in CROSS_SWIPE_COLS]).astype('datetime64[ns]')
+    # ------------------------------------------------------------------
+    # Activated-by-day-90 (months-since-open, monthly granularity)
+    # ------------------------------------------------------------------
+    if _sw_ts is not None:
         _sw = _scope[CROSS_SWIPE_COLS].apply(pd.to_numeric, errors='coerce').fillna(0).to_numpy()
         _opened = _scope['open_date'].values.astype('datetime64[ns]')
-        _deltas = (_sw_ts[None, :] - _opened[:, None]).astype('timedelta64[D]').astype(int)
-        _within_90 = (_deltas >= 0) & (_deltas <= 90)
-        _scope['_activated_90'] = ((_sw > 0) & _within_90).any(axis=1)
+        _opened_ms = _opened.astype('datetime64[M]').astype('datetime64[ns]')
+        _months_since = ((_sw_ts[None, :] - _opened_ms[:, None])
+                         .astype('timedelta64[M]').astype(int))
+        _within_3_mo = (_months_since >= 0) & (_months_since < 3)
+        _scope['_activated_90'] = ((_sw > 0) & _within_3_mo).any(axis=1)
     else:
         _scope['_activated_90'] = False
 
@@ -101,7 +130,7 @@ else:
             'Mailed (>=1 offer)': _pct(_scope['ever_mailed'], m),
             'Response rate': _pct(_scope['ever_responded'], m & _scope['ever_mailed']),
             'Avg responses / mailed': _mean('n_responded', m & _scope['ever_mailed']),
-            'Climbed >=1 tier': _pct(_scope['tier_rank_delta'].fillna(0) > 0, m),
+            'Climbed >=1 tier': _pct(_scope['tier_rank_delta'].fillna(-1) > 0, m),
             'Avg monthly spend': _mean('MonthlySpend12', m),
             'Avg balance': _mean('Avg Bal', m),
             'At-risk (Decl+Dorm)': _pct(_scope['risk_tier'].isin(['Declining', 'Dormant']), m),
@@ -109,7 +138,6 @@ else:
         })
     score = pd.DataFrame(rows)
 
-    # Formatting
     def _f_pct(v):
         return '--' if v != v else f'{v:.1f}%'
 
@@ -131,13 +159,13 @@ else:
     try:
         display_formatted(show, 'Composite Scorecard -- ICS Channel Performance')  # noqa: F821
     except NameError:
-        print('\n   Composite Scorecard -- ICS Channel Performance')
+        print('   Composite Scorecard -- ICS Channel Performance')
         print(show.to_string(index=False))
 
     # ------------------------------------------------------------------
     # Render as a heat-styled matplotlib table for the deck
     # ------------------------------------------------------------------
-    fig, ax = plt.subplots(figsize=(18, 2.2 + 0.55 * len(score)))
+    fig, ax = plt.subplots(figsize=(22, 2.6 + 0.7 * len(score)))
     ax.axis('off')
 
     tbl = ax.table(
@@ -145,16 +173,14 @@ else:
         loc='center', cellLoc='center',
     )
     tbl.auto_set_font_size(False)
-    tbl.set_fontsize(10)
-    tbl.scale(1, 1.7)
+    tbl.set_fontsize(12)
+    tbl.scale(1, 2.0)
 
-    # Header styling
     for col_i, _ in enumerate(show.columns):
         cell = tbl[0, col_i]
         cell.set_facecolor(GEN_COLORS['primary'])
         cell.set_text_props(color='white', fontweight='bold')
 
-    # Channel column styling
     channel_colors = {'REF': '#E6FFFA', 'DM': '#FFFAF0',
                       'ICS-Unknown': '#F7FAFC', 'Non-ICS': '#EDF2F7'}
     for r_i, ch in enumerate(show['Channel'], start=1):
@@ -163,12 +189,12 @@ else:
             cell.set_facecolor(channel_colors.get(ch, 'white'))
 
     ax.set_title('Composite Scorecard -- ICS Channel Performance',
-                 fontsize=18, fontweight='bold',
+                 fontsize=22, fontweight='bold',
                  color=GEN_COLORS['dark_text'], pad=14, loc='left')
     fig.text(0.01, 0.01,
-             'Denominators: "Response rate" is of mailed.  "Climbed >=1 tier" and'
-             ' "At-risk"/"Closed" are of all accounts in the channel.  Missing data = "--".',
-             fontsize=9.5, color=GEN_COLORS['muted'], style='italic')
+             f'Scope: accounts opened on/after {_first_swipe_month.strftime("%b %Y") if _first_swipe_month is not None else "-"}.  '
+             f'Response rate denom = mailed.  Tier / activated columns use monthly Swipes granularity.',
+             fontsize=11, color=GEN_COLORS['muted'], style='italic')
 
     plt.savefig('cross_cohort_96_scorecard.png', dpi=160, bbox_inches='tight')
     plt.show()

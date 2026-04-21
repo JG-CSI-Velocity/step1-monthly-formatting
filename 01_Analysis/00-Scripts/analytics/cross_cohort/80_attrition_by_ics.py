@@ -127,7 +127,9 @@ else:
                  fontsize=22, fontweight='bold',
                  color=GEN_COLORS['dark_text'], y=1.03)
     fig.text(0.5, 0.99,
-             'Risk tiers from attrition_txn/01.  At-risk = Declining + Dormant.',
+             'Risk tiers from attrition_txn/01.  At-risk = Declining + Dormant.  '
+             'CAVEAT: Non-ICS pool spans many more years of originations, so absolute Closed % '
+             'is elevated vs ICS (newer program, less time to have closed).',
              ha='center', fontsize=11, color=GEN_COLORS['muted'], style='italic')
 
     plt.tight_layout()

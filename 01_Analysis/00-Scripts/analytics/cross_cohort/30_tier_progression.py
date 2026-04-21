@@ -71,7 +71,10 @@ else:
                  fontsize=17, fontweight='bold', color=GEN_COLORS['dark_text'], y=1.02)
     fig.text(0.5, -0.01,
              'Diagonal = stayed in bucket.  Above diagonal = climbed.  Below = slipped.  '
-             'Buckets follow shared/format_odd.py cutoffs.',
+             'Buckets follow shared/format_odd.py cutoffs.  '
+             'NOTE: first_tier is set to NA for accounts opened before the Swipes data window, '
+             'so rows in those transitions only include accounts whose "first" is genuinely '
+             'early-life (see cell 01 scope gate).',
              ha='center', fontsize=10, color=GEN_COLORS['muted'], style='italic')
     plt.tight_layout()
     plt.savefig('cross_cohort_30_transition.png', dpi=160, bbox_inches='tight')

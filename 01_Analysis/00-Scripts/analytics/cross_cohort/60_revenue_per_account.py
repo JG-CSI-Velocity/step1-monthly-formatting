@@ -23,6 +23,11 @@ import matplotlib.pyplot as plt
 
 INTERCHANGE_BPS = 120
 INCLUDE_CLOSED = False
+# When True, restrict to accounts opened on/after the first Spend month so
+# "observed_spend" actually covers the account's full life-in-data.  When
+# False, include all accounts and keep in mind that pre-Spend-window
+# activity is invisible.
+SCOPE_TO_OBSERVABLE_LIFETIME = True
 
 _required = ('cross_df', 'rewards_df', 'CROSS_SWIPE_COLS')
 _missing = [n for n in _required if n not in dir()]
@@ -79,10 +84,28 @@ else:
         if not INCLUDE_CLOSED:
             rev = rev[rev['date_closed'].isna()]
 
-        # Lifetime interchange (sum across all Spend cols * bps)
+        _first_spend_month = pd.Timestamp(
+            year=2000 + int(spend_cols[0].replace(' Spend', '').strip()[3:]),
+            month=_MONTH_MAP[spend_cols[0].replace(' Spend', '').strip()[:3]],
+            day=1,
+        )
+        _n_before_scope = len(rev)
+        if SCOPE_TO_OBSERVABLE_LIFETIME:
+            rev = rev[rev['open_date'].notna()
+                      & (rev['open_date'] >= _first_spend_month)]
+        _n_after_scope = len(rev)
+        print(f'    Spend window floor : {_first_spend_month.date()}')
+        print(f'    Accounts in scope  : {_n_after_scope:,} '
+              f'(dropped {_n_before_scope - _n_after_scope:,} '
+              f'{"for being opened before Spend data" if SCOPE_TO_OBSERVABLE_LIFETIME else "[SCOPE disabled]"})')
+        print()
+
+        # Observed-window interchange (sum across all Spend cols * bps).
+        # When scoped, observed_* IS lifetime.  When unscoped, observed_*
+        # only reflects post-Spend-window activity for old accounts.
         _bps = INTERCHANGE_BPS / 10000.0
-        rev['lifetime_spend'] = rev[spend_cols].sum(axis=1)
-        rev['lifetime_interchange'] = rev['lifetime_spend'] * _bps
+        rev['observed_spend'] = rev[spend_cols].sum(axis=1)
+        rev['observed_interchange'] = rev['observed_spend'] * _bps
 
         # Months-open count for per-month averages:
         # count columns whose month >= open_date
@@ -96,8 +119,8 @@ else:
         eligible = _col_ts_arr[None, :] >= _opened[:, None]
         rev['months_open_in_window'] = eligible.sum(axis=1).clip(min=1)
 
-        rev['spend_per_mo'] = rev['lifetime_spend'] / rev['months_open_in_window']
-        rev['interchange_per_mo'] = rev['lifetime_interchange'] / rev['months_open_in_window']
+        rev['spend_per_mo'] = rev['observed_spend'] / rev['months_open_in_window']
+        rev['interchange_per_mo'] = rev['observed_interchange'] / rev['months_open_in_window']
 
         # ----------------------------------------------------------
         # Per-channel rollup
@@ -109,8 +132,8 @@ else:
             .agg(accounts=('acct_number', 'count'),
                  avg_spend_mo=('spend_per_mo', 'mean'),
                  avg_interchange_mo=('interchange_per_mo', 'mean'),
-                 avg_lifetime_interchange=('lifetime_interchange', 'mean'),
-                 total_interchange=('lifetime_interchange', 'sum'))
+                 avg_observed_interchange=('observed_interchange', 'mean'),
+                 total_interchange=('observed_interchange', 'sum'))
             .reindex(CHANNEL_ORDER)
             .reset_index()
         )
@@ -135,11 +158,13 @@ else:
         for s in ('top', 'right'):
             axes[0].spines[s].set_visible(False)
 
-        axes[1].bar(channels, roll['avg_lifetime_interchange'], color=colors, edgecolor='white')
-        axes[1].set_ylabel('$ lifetime per account (open .. latest month)')
-        axes[1].set_title('Implied lifetime interchange per account',
+        _obs_label = ('lifetime' if SCOPE_TO_OBSERVABLE_LIFETIME
+                      else 'observed-window')
+        axes[1].bar(channels, roll['avg_observed_interchange'], color=colors, edgecolor='white')
+        axes[1].set_ylabel(f'$ {_obs_label} per account')
+        axes[1].set_title(f'Implied {_obs_label} interchange per account',
                           fontsize=15, fontweight='bold', color=GEN_COLORS['dark_text'], pad=10)
-        for i, v in enumerate(roll['avg_lifetime_interchange']):
+        for i, v in enumerate(roll['avg_observed_interchange']):
             axes[1].text(i, v * 1.02, f'${v:,.0f}', ha='center', fontsize=11,
                          color=GEN_COLORS['dark_text'], fontweight='bold')
         for s in ('top', 'right'):
@@ -151,7 +176,7 @@ else:
         fig.text(0.5, 0.97,
                  f'Interchange is an ESTIMATE from card Spend * {INTERCHANGE_BPS}bps.  '
                  f'Closed accounts {"included" if INCLUDE_CLOSED else "excluded"}.  '
-                 f'Lifetime = sum over open-to-latest window.',
+                 f'Scope: {"accounts opened on/after " + _first_spend_month.strftime("%b %Y") + " (true lifetime)" if SCOPE_TO_OBSERVABLE_LIFETIME else "all accounts (observed-window only, pre-" + _first_spend_month.strftime("%b %Y") + " activity invisible)"}.',
                  ha='center', fontsize=11, color=GEN_COLORS['muted'], style='italic')
 
         plt.tight_layout()
@@ -166,10 +191,11 @@ else:
         show['accounts'] = show['accounts'].map('{:,}'.format)
         show['avg_spend_mo'] = show['avg_spend_mo'].map('${:,.2f}'.format)
         show['avg_interchange_mo'] = show['avg_interchange_mo'].map('${:,.2f}'.format)
-        show['avg_lifetime_interchange'] = show['avg_lifetime_interchange'].map('${:,.0f}'.format)
+        show['avg_observed_interchange'] = show['avg_observed_interchange'].map('${:,.0f}'.format)
         show['total_interchange'] = show['total_interchange'].map('${:,.0f}'.format)
         show.columns = ['Channel', 'Accounts', 'Spend/mo', 'Interchange/mo',
-                        'Lifetime interchange/acct', 'Total channel interchange']
+                        f'{_obs_label.capitalize()} interchange/acct',
+                        f'Total channel {_obs_label} interchange']
 
         try:
             display_formatted(show, f'Revenue Proxy by ICS Channel  ({INTERCHANGE_BPS} bps)')  # noqa: F821
@@ -186,5 +212,5 @@ else:
                     continue
                 row = roll[roll['ics_channel'] == ch].iloc[0]
                 lift_mo = row['avg_interchange_mo'] - non['avg_interchange_mo']
-                lift_lt = row['avg_lifetime_interchange'] - non['avg_lifetime_interchange']
-                print(f'    {ch:>12s}: +${lift_mo:,.2f}/mo  +${lift_lt:,.0f} lifetime per account vs Non-ICS')
+                lift_lt = row['avg_observed_interchange'] - non['avg_observed_interchange']
+                print(f'    {ch:>12s}: +${lift_mo:,.2f}/mo  +${lift_lt:,.0f} {_obs_label} per account vs Non-ICS')

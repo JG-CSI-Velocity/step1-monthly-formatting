@@ -250,10 +250,33 @@ if _swipe_cols:
     cross_df['current_tier_rank'] = cross_df['current_tier'].map(_TIER_RANK)
     cross_df['tier_rank_delta'] = cross_df['current_tier_rank'] - cross_df['first_tier_rank']
 
+    # Scope gate: tier-up metrics are only meaningful for accounts opened
+    # within the Swipes observation window. For accounts opened before
+    # the first Swipes column, first_tier is actually their mid-life
+    # tier, not their early-life tier, so tier_rank_delta is late-life
+    # drift, not new-account growth. NaN those out so downstream cells
+    # can't present late-life drift as "holy-grail growth".
+    _MONTH_MAP2 = {'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
+                   'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12}
+
+    def _col_to_ts(col):
+        tag = col.replace(' Swipes', '').strip()
+        return pd.Timestamp(year=2000 + int(tag[3:]), month=_MONTH_MAP2[tag[:3]], day=1)
+
+    _first_swipe_month = _col_to_ts(_swipe_cols[0])
+    _tier_scope = cross_df['open_date'] >= _first_swipe_month
+    cross_df.loc[~_tier_scope, ['first_tier', 'current_tier']] = pd.NA
+    cross_df.loc[~_tier_scope, ['first_tier_rank', 'current_tier_rank', 'tier_rank_delta']] = np.nan
+    cross_df['tier_rank_delta'] = pd.to_numeric(cross_df['tier_rank_delta'], errors='coerce')
+
     cross_df['tier_trajectory'] = np.where(
         cross_df['tier_rank_delta'] > 0, 'Up',
-        np.where(cross_df['tier_rank_delta'] < 0, 'Down', 'Flat'),
+        np.where(cross_df['tier_rank_delta'] < 0, 'Down',
+                 np.where(cross_df['tier_rank_delta'].isna(), 'Out-of-window', 'Flat')),
     )
+
+    CROSS_FIRST_SWIPE_MONTH = _first_swipe_month
+    CROSS_TIER_SCOPE_MASK = _tier_scope
 else:
     cross_df['first_tier'] = pd.NA
     cross_df['current_tier'] = pd.NA
@@ -261,6 +284,8 @@ else:
     cross_df['current_tier_rank'] = np.nan
     cross_df['tier_rank_delta'] = np.nan
     cross_df['tier_trajectory'] = pd.NA
+    CROSS_FIRST_SWIPE_MONTH = pd.NaT
+    CROSS_TIER_SCOPE_MASK = pd.Series(False, index=cross_df.index)
 
 # ---------------------------------------------------------------------------
 # 10. Exports for downstream cells
