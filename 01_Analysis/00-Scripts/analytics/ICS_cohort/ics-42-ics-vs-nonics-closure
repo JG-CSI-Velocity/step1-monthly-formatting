@@ -105,18 +105,72 @@ _ics_r, _ics_dist = _rates_and_dist(_ics_mask)
 _non_r, _non_dist = _rates_and_dist(_non_mask)
 
 # ------------------------------------------------------------------
-# Headline closure rates
+# Render via pandas Styler directly.  display_formatted mis-classifies
+# some columns of the duration table (e.g. tries to coerce '0-1 month'
+# into a percentage) and crashes.  Using Styler explicitly gives us full
+# control over per-column formatting.  See issue #84.
+# ------------------------------------------------------------------
+def _style_closure(df, caption, pct_cols=(), int_cols=()):
+    fmt = {}
+    for c in pct_cols:
+        if c in df.columns:
+            fmt[c] = lambda v: f"{v * 100:.1f}%" if pd.notna(v) else ''
+    for c in int_cols:
+        if c in df.columns:
+            fmt[c] = lambda v: f"{int(v):,}" if pd.notna(v) else ''
+
+    styled = (
+        df.style
+        .hide(axis='index')
+        .format(fmt, na_rep='')
+        .set_properties(**{
+            'font-size': '13px',
+            'text-align': 'center',
+            'border': '1px solid #E9ECEF',
+            'padding': '7px 10px',
+        })
+        .set_table_styles([
+            {'selector': 'th', 'props': [
+                ('background-color', '#2D3748'),
+                ('color', 'white'),
+                ('font-size', '14px'),
+                ('font-weight', 'bold'),
+                ('text-align', 'center'),
+                ('padding', '8px 10px'),
+            ]},
+            {'selector': 'caption', 'props': [
+                ('font-size', '20px'),
+                ('font-weight', 'bold'),
+                ('color', '#1A202C'),
+                ('text-align', 'left'),
+                ('padding-bottom', '10px'),
+                ('caption-side', 'top'),
+            ]},
+        ])
+        .set_caption(caption)
+    )
+    display(styled)
+
+
+# ------------------------------------------------------------------
+# Headline closure rates (all values pre-formatted as strings, so
+# Styler just renders them)
 # ------------------------------------------------------------------
 closure_rates = pd.DataFrame([
-    {'Metric': 'Cohort Size',           'ICS': f"{_ics_r['count']:,}",          'Non-ICS': f"{_non_r['count']:,}"},
-    {'Metric': 'Open Accounts',         'ICS': f"{_ics_r['open']:,}",           'Non-ICS': f"{_non_r['open']:,}"},
-    {'Metric': 'Closed Accounts',       'ICS': f"{_ics_r['closed']:,}",         'Non-ICS': f"{_non_r['closed']:,}"},
-    {'Metric': '% Closed',              'ICS': f"{_ics_r['closed_pct']:.1%}",   'Non-ICS': f"{_non_r['closed_pct']:.1%}"},
-    {'Metric': '% Still Open',          'ICS': f"{_ics_r['open_pct']:.1%}",     'Non-ICS': f"{_non_r['open_pct']:.1%}"},
+    {'Metric': 'Cohort Size',           'ICS': f"{_ics_r['count']:,}",
+                                        'Non-ICS': f"{_non_r['count']:,}"},
+    {'Metric': 'Open Accounts',         'ICS': f"{_ics_r['open']:,}",
+                                        'Non-ICS': f"{_non_r['open']:,}"},
+    {'Metric': 'Closed Accounts',       'ICS': f"{_ics_r['closed']:,}",
+                                        'Non-ICS': f"{_non_r['closed']:,}"},
+    {'Metric': '% Closed',              'ICS': f"{_ics_r['closed_pct']:.1%}",
+                                        'Non-ICS': f"{_non_r['closed_pct']:.1%}"},
+    {'Metric': '% Still Open',          'ICS': f"{_ics_r['open_pct']:.1%}",
+                                        'Non-ICS': f"{_non_r['open_pct']:.1%}"},
     {'Metric': 'Avg Days Before Close', 'ICS': f"{_ics_r['avg_days_closed']:,.0f}",
                                         'Non-ICS': f"{_non_r['avg_days_closed']:,.0f}"},
 ])
-display_formatted(closure_rates, "ICS vs Non-ICS — Closure Rates")
+_style_closure(closure_rates, "ICS vs Non-ICS — Closure Rates")
 
 # ------------------------------------------------------------------
 # Duration distribution for closed accounts
@@ -127,9 +181,9 @@ _non_total = int(_non_dist.sum())
 closure_duration_comparison = pd.DataFrame({
     'Duration Range':   AGE_RANGE_ORDER,
     'ICS Closed':       _ics_dist.values,
-    'ICS Closed %':     (_ics_dist.values / _ics_total) if _ics_total else 0,
+    'ICS Closed %':     (_ics_dist.values / _ics_total) if _ics_total else np.zeros(len(AGE_RANGE_ORDER)),
     'Non-ICS Closed':   _non_dist.values,
-    'Non-ICS Closed %': (_non_dist.values / _non_total) if _non_total else 0,
+    'Non-ICS Closed %': (_non_dist.values / _non_total) if _non_total else np.zeros(len(AGE_RANGE_ORDER)),
 })
 
 total_row = pd.DataFrame([{
@@ -143,9 +197,11 @@ closure_duration_comparison = pd.concat(
     [closure_duration_comparison, total_row], ignore_index=True
 )
 
-display_formatted(
+_style_closure(
     closure_duration_comparison,
-    "ICS vs Non-ICS — Duration Distribution of Closed Accounts"
+    "ICS vs Non-ICS — Duration Distribution of Closed Accounts",
+    pct_cols=('ICS Closed %', 'Non-ICS Closed %'),
+    int_cols=('ICS Closed', 'Non-ICS Closed'),
 )
 
 # ------------------------------------------------------------------
