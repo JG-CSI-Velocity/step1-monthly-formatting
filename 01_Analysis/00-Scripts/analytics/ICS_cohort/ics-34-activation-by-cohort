@@ -1,110 +1,206 @@
 # ============================================
-# ics-34-activation-by-cohort — Per-opening-month activation %, ICS vs Non-ICS
+# ics-34-activation-by-cohort — Activation % per cohort, ICS vs Non-ICS
 # ============================================
 # Supersedes: ax-31-cohort m1 activation  (was M1-only).
 # Depends on: ics-00-config, ics-01-normalize, ics-02-helpers.
 #
-# Two parallel tables: same opening months as rows, milestone columns
-# (M1 / M3 / M6 / M9 / M12 / M24) as % active. First table is the ICS
-# target-Stat debit cohort; second is the matched Non-ICS-with-debit
-# cohort so the comparison is apples-to-apples (both can swipe).
+# Three tables in order:
+#   1. ICS  (Debit) by Opening MONTH (per-month granularity)
+#   2. Non-ICS (Debit) by Opening YEAR (2021, 2022, ..., 2026 YTD)
+#      -- rolled up because the Non-ICS pool spans many years and a
+#         month-by-month view is too granular for the summary slide.
+#   3. Weighted-average summary -- one row per cohort, side by side,
+#      so the headline lift is readable at a glance.
 #
-# A cell is blank when the milestone month falls outside the data
-# (cohort too new). Final row is the cohort-size-weighted average.
+# Milestone columns are named 'M1 %' / 'M3 %' / ... so display_formatted
+# renders them as 1-decimal percent (66.7% not 0.6666666).
+# Rows where EVERY milestone is NaN (cohort too new for any observable
+# milestone) are dropped so the tables don't show empty rows.
 
 print(f"\n📊 ics-34 — Activation % per cohort, by milestone — ICS {STAT_LABEL} vs Non-ICS...")
 
-_MILESTONES = [('M1', 0), ('M3', 2), ('M6', 5), ('M9', 8), ('M12', 11), ('M24', 23)]
+# (name, months-after-open, display-column)
+_MILESTONES = [
+    ('M1',  0,  'M1 %'),
+    ('M3',  2,  'M3 %'),
+    ('M6',  5,  'M6 %'),
+    ('M9',  8,  'M9 %'),
+    ('M12', 11, 'M12 %'),
+    ('M24', 23, 'M24 %'),
+]
+_DISPLAY_COLS = [d for _, _, d in _MILESTONES]
 
-def _activation_table(frame, label):
-    """Return a per-opening-month activation table for one cohort."""
+
+def _monthly_activation_table(frame, label):
+    """Per-opening-month activation table for one cohort.  Values are
+    fractions 0-1; column names end in ' %' so display_formatted
+    auto-renders as 1-decimal percent."""
     _f = add_opening_month(frame)
     _f = apply_cohort_start(_f)
     if _f.empty:
-        return pd.DataFrame(columns=(['Opening Month', 'Cohort Size']
-                                     + [m for m, _ in _MILESTONES]))
+        return pd.DataFrame(columns=(['Opening Month', 'Cohort Size'] + _DISPLAY_COLS))
 
     rows = []
     for _op in sorted(_f['Opening Month'].dropna().unique()):
-        _sub        = _f[_f['Opening Month'] == _op]
+        _sub = _f[_f['Opening Month'] == _op]
         _opening_dt = pd.to_datetime(_op)
         _row = {'Opening Month': _op, 'Cohort Size': int(len(_sub))}
-        for _name, _offset in _MILESTONES:
-            _tag   = (_opening_dt + pd.DateOffset(months=_offset)).strftime('%b%y')
+        for _name, _offset, _disp in _MILESTONES:
+            _tag = (_opening_dt + pd.DateOffset(months=_offset)).strftime('%b%y')
             _s_col = f"{_tag} Swipes"
             if _s_col in _sub.columns:
-                _sw     = pd.to_numeric(_sub[_s_col], errors='coerce').fillna(0)
+                _sw = pd.to_numeric(_sub[_s_col], errors='coerce').fillna(0)
                 _active = int((_sw > 0).sum())
-                _row[_name] = (_active / len(_sub)) if len(_sub) else float('nan')
+                _row[_disp] = (_active / len(_sub)) if len(_sub) else float('nan')
             else:
-                _row[_name] = float('nan')
+                _row[_disp] = float('nan')
         rows.append(_row)
 
     _tbl = pd.DataFrame(rows)
 
+    # Drop rows where EVERY milestone is NaN
+    _all_nan = _tbl[_DISPLAY_COLS].isna().all(axis=1)
+    if _all_nan.any():
+        _dropped = int(_all_nan.sum())
+        _tbl = _tbl.loc[~_all_nan].reset_index(drop=True)
+        print(f"   ({label}: dropped {_dropped} all-NaN cohort row(s))")
+
     # Weighted-average bottom row
     _total_size = int(_tbl['Cohort Size'].sum())
-    _avg_row    = {'Opening Month': 'Weighted Avg', 'Cohort Size': _total_size}
-    for _name, _ in _MILESTONES:
-        _vals = pd.to_numeric(_tbl[_name], errors='coerce')
+    _avg_row = {'Opening Month': 'Weighted Avg', 'Cohort Size': _total_size}
+    for _, _, _disp in _MILESTONES:
+        _vals = pd.to_numeric(_tbl[_disp], errors='coerce')
         _mask = _vals.notna()
         if _mask.any():
-            _w        = _tbl.loc[_mask, 'Cohort Size'].astype(float)
-            _active_n = (_vals[_mask] * _w).sum()
-            _avg_row[_name] = (_active_n / _w.sum()) if _w.sum() else float('nan')
+            _w = _tbl.loc[_mask, 'Cohort Size'].astype(float)
+            _avg_row[_disp] = float((_vals[_mask] * _w).sum() / _w.sum()) if _w.sum() else float('nan')
         else:
-            _avg_row[_name] = float('nan')
+            _avg_row[_disp] = float('nan')
     _tbl = pd.concat([_tbl, pd.DataFrame([_avg_row])], ignore_index=True)
 
-    # Numeric hygiene
-    for _name, _ in _MILESTONES:
-        _tbl[_name] = pd.to_numeric(_tbl[_name], errors='coerce')
-
+    for _, _, _disp in _MILESTONES:
+        _tbl[_disp] = pd.to_numeric(_tbl[_disp], errors='coerce')
     return _tbl
 
-# Pre-format the milestone columns as percent strings (1 decimal) for
-# display — the column names are bare ('M1', 'M3', …) so the formatter
-# can't tell these are fractions and would otherwise render 0.6543210….
-def _format_for_display(tbl):
-    _disp = tbl.copy()
-    for _name, _ in _MILESTONES:
-        _disp[_name] = pd.to_numeric(_disp[_name], errors='coerce').map(
-            lambda v: f"{v:.1%}" if pd.notna(v) else ''
-        )
-    return _disp
 
-# ---- ICS target-Stat debit cohort -----------------------------------------
-_ics  = ics_cohort_debit(data)
-ics_activation_by_cohort = _activation_table(_ics, 'ICS')
+def _collapse_to_annual(monthly_tbl):
+    """Collapse a monthly table to one row per Opening Year.
+    Weighted-average each milestone by Cohort Size across the months in
+    the year.  Partial years get a 'YTD' suffix when fewer than 12 months
+    of data are present.  The 'Weighted Avg' row is dropped before the
+    collapse and a fresh annual weighted-avg row is appended at the end."""
+    m = monthly_tbl[monthly_tbl['Opening Month'] != 'Weighted Avg'].copy()
+    if m.empty:
+        return pd.DataFrame(columns=(['Opening Year', 'Cohort Size'] + _DISPLAY_COLS))
+
+    m['Year'] = m['Opening Month'].str[:4]
+    # Current year (from ACTIVITY_END_DATE) gets YTD label if partial
+    try:
+        _current_year = str(ACTIVITY_END_DATE.year)
+    except NameError:
+        _current_year = None
+
+    rows = []
+    for year, grp in m.groupby('Year'):
+        size = int(grp['Cohort Size'].sum())
+        months_present = grp['Opening Month'].nunique()
+        label = year
+        if _current_year and year == _current_year and months_present < 12:
+            label = f"{year} YTD"
+        elif months_present < 12:
+            label = f"{year} (partial)"
+        row = {'Opening Year': label, 'Cohort Size': size}
+        for _, _, disp in _MILESTONES:
+            fracs = pd.to_numeric(grp[disp], errors='coerce')
+            sizes = grp['Cohort Size'].astype(float)
+            mask = fracs.notna()
+            if mask.any() and float(sizes[mask].sum()) > 0:
+                row[disp] = float((fracs[mask] * sizes[mask]).sum() / sizes[mask].sum())
+            else:
+                row[disp] = float('nan')
+        rows.append(row)
+
+    annual = pd.DataFrame(rows)
+
+    # Drop all-NaN annual rows
+    _all_nan = annual[_DISPLAY_COLS].isna().all(axis=1)
+    if _all_nan.any():
+        _dropped = int(_all_nan.sum())
+        annual = annual.loc[~_all_nan].reset_index(drop=True)
+        print(f"   (Non-ICS annual: dropped {_dropped} all-NaN year row(s))")
+
+    # Sort chronologically; 'YYYY (partial)' / 'YYYY YTD' sort lexically
+    # after 'YYYY' which is fine for our labels.
+    annual = annual.sort_values('Opening Year').reset_index(drop=True)
+
+    # Annual weighted-average row
+    _total_size = int(annual['Cohort Size'].sum())
+    _avg_row = {'Opening Year': 'Weighted Avg', 'Cohort Size': _total_size}
+    for _, _, disp in _MILESTONES:
+        vals = pd.to_numeric(annual[disp], errors='coerce')
+        mask = vals.notna()
+        if mask.any():
+            w = annual.loc[mask, 'Cohort Size'].astype(float)
+            _avg_row[disp] = float((vals[mask] * w).sum() / w.sum()) if w.sum() else float('nan')
+        else:
+            _avg_row[disp] = float('nan')
+    annual = pd.concat([annual, pd.DataFrame([_avg_row])], ignore_index=True)
+
+    for _, _, disp in _MILESTONES:
+        annual[disp] = pd.to_numeric(annual[disp], errors='coerce')
+    return annual
+
+
+# ---- ICS target-Stat debit cohort — monthly --------------------------------
+_ics = ics_cohort_debit(data)
+ics_activation_by_cohort = _monthly_activation_table(_ics, 'ICS')
 display_formatted(
-    _format_for_display(ics_activation_by_cohort),
-    f"ICS {STAT_LABEL} (Debit) — Activation % by Cohort × Milestone"
+    ics_activation_by_cohort,
+    f"ICS {STAT_LABEL} (Debit) — Activation % by Opening Month × Milestone"
 )
 
-# ---- Matched Non-ICS-with-debit cohort ------------------------------------
+# ---- Matched Non-ICS-with-debit cohort — ANNUAL ----------------------------
 _non = non_ics_cohort(data)
 if 'Debit?' in _non.columns:
     _non = _non[_non['Debit?'] == 'Yes']
-nonics_activation_by_cohort = _activation_table(_non, 'Non-ICS')
+_non_monthly = _monthly_activation_table(_non, 'Non-ICS')
+nonics_activation_by_cohort = _collapse_to_annual(_non_monthly)
 display_formatted(
-    _format_for_display(nonics_activation_by_cohort),
-    "Non-ICS (Debit) — Activation % by Cohort × Milestone"
+    nonics_activation_by_cohort,
+    "Non-ICS (Debit) — Activation % by Opening Year × Milestone"
 )
 
-# ---- Side-by-side delta summary on the weighted average row ---------------
-print(f"\n📣 Weighted-average activation rates (Δ = ICS − Non-ICS):")
+# ---- Weighted-average summary (standalone formatted table) -----------------
 _ics_avg = ics_activation_by_cohort.iloc[-1]
 _non_avg = nonics_activation_by_cohort.iloc[-1]
-for _name, _ in _MILESTONES:
-    _i = _ics_avg[_name]
-    _n = _non_avg[_name]
+
+summary_rows = [
+    {'Cohort': f'ICS {STAT_LABEL} (Debit)', 'Cohort Size': int(_ics_avg['Cohort Size']),
+     **{disp: _ics_avg[disp] for _, _, disp in _MILESTONES}},
+    {'Cohort': 'Non-ICS (Debit)', 'Cohort Size': int(_non_avg['Cohort Size']),
+     **{disp: _non_avg[disp] for _, _, disp in _MILESTONES}},
+]
+activation_summary = pd.DataFrame(summary_rows)
+for _, _, disp in _MILESTONES:
+    activation_summary[disp] = pd.to_numeric(activation_summary[disp], errors='coerce')
+
+display_formatted(
+    activation_summary,
+    "Weighted-Average Activation Rates — ICS vs Non-ICS"
+)
+
+# ---- Delta print-out (Δ in percentage points) ------------------------------
+print(f"\n📣 Activation lift (Δ = ICS − Non-ICS):")
+for _name, _, _disp in _MILESTONES:
+    _i = _ics_avg[_disp]
+    _n = _non_avg[_disp]
     if pd.notna(_i) and pd.notna(_n):
-        print(f"   {_name:>3}: ICS {_i:>6.1%}  |  Non-ICS {_n:>6.1%}  |  Δ {_i - _n:+.1%}")
+        print(f"   {_name:>3}: ICS {_i:>6.1%}  |  Non-ICS {_n:>6.1%}  |  Δ {(_i - _n) * 100:+.1f}pp")
     elif pd.notna(_i):
         print(f"   {_name:>3}: ICS {_i:>6.1%}  |  Non-ICS    -    |  (no Non-ICS data)")
     elif pd.notna(_n):
         print(f"   {_name:>3}: ICS    -     |  Non-ICS {_n:>6.1%}  |  (no ICS data)")
 
 print(f"\n✅ Analysis completed")
-print(f"   ICS  cohorts shown    : {len(ics_activation_by_cohort) - 1}")
-print(f"   Non-ICS cohorts shown : {len(nonics_activation_by_cohort) - 1}")
+print(f"   ICS  cohort months shown      : {len(ics_activation_by_cohort) - 1}")
+print(f"   Non-ICS cohort years shown    : {len(nonics_activation_by_cohort) - 1}")
