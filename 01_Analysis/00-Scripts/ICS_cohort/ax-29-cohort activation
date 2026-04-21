@@ -1,0 +1,176 @@
+
+# ============================================
+# A[X].29 - ICS STAT CODE O - COHORT ACTIVATION ANALYSIS (FINAL - ACTIVATION FOCUSED)
+# ============================================
+
+print("\n📊 A[X].29 - Analyzing ICS Stat Code O Cohort Activation...")
+
+import numpy as np
+import pandas as pd
+import re
+
+# 1) Load ICS O debit accounts
+ics_stat_o = data[
+    (data['ICS Account'] == 'Yes') &
+    (data['Stat Code'].astype(str).str.upper().str.strip() == '0') &
+    (data['Debit?'] == 'Yes')
+].copy()
+
+ics_stat_o['Date Opened']   = pd.to_datetime(ics_stat_o['Date Opened'], errors='coerce')
+ics_stat_o['Opening Month'] = ics_stat_o['Date Opened'].dt.to_period('M').astype(str)
+
+# 2) Keep only cohorts from 2025-01 forward
+ics_stat_o = ics_stat_o[ics_stat_o['Opening Month'] >= "2025-01"].copy()
+
+opening_months = sorted(ics_stat_o['Opening Month'].unique())
+
+# 3) Milestones (month-of-life markers)
+milestones = {
+    "M1": 0,   # +0 months
+    "M3": 2,   # +2 months
+    "M6": 5,   # +5 months
+    "M12": 11  # +11 months
+}
+
+cohort_rows = []
+
+# Helper function
+def extract_month_metrics(opening_dt, cohort_df, offset, prefix):
+    tag_dt = opening_dt + pd.DateOffset(months=offset)
+    tag    = tag_dt.strftime('%b%y')
+
+    s_col  = f"{tag} Swipes"
+    d_col  = f"{tag} Spend"
+
+    if (tag in last_12_months) and (s_col in cohort_df.columns) and (d_col in cohort_df.columns):
+        sw = pd.to_numeric(cohort_df[s_col], errors='coerce').fillna(0)
+        sp = pd.to_numeric(cohort_df[d_col], errors='coerce').fillna(0)
+
+        total_swipes = sw.sum()
+        total_spend  = sp.sum()
+        active_cnt   = int((sw > 0).sum())
+
+        activation_rate = active_cnt / len(cohort_df) if len(cohort_df) else np.nan
+
+        return {
+            f"{prefix} Active": active_cnt,
+            f"{prefix} Activation %": activation_rate,
+            f"{prefix} Avg Swipes": sw.mean() if total_swipes > 0 else np.nan,
+            f"{prefix} Avg Spend": sp.mean() if total_spend > 0 else np.nan
+        }
+
+    else:
+        return {
+            f"{prefix} Active": np.nan,
+            f"{prefix} Activation %": np.nan,
+            f"{prefix} Avg Swipes": np.nan,
+            f"{prefix} Avg Spend": np.nan
+        }
+
+# Build cohort table
+for op_month in opening_months:
+    cohort = ics_stat_o[ics_stat_o['Opening Month'] == op_month].copy()
+    if cohort.empty:
+        continue
+
+    opening_dt = pd.to_datetime(op_month)
+
+    row = {
+        "Opening Month": op_month,
+        "Cohort Size":   int(len(cohort)),
+        "Avg Current Balance": cohort["Curr Bal"].mean()
+    }
+
+    # Add milestone blocks
+    for label, offset in milestones.items():
+        row.update(extract_month_metrics(opening_dt, cohort, offset, label))
+
+    cohort_rows.append(row)
+
+ax24_cohort_activation = pd.DataFrame(cohort_rows)
+
+# -------------------------------------------------------
+# CLEANUP — enforce numeric dtypes; missing stays NaN
+# -------------------------------------------------------
+
+ax24_cohort_activation = ax24_cohort_activation.replace(
+    to_replace=['nan', 'NaN', 'None', ''], value=np.nan
+)
+
+value_cols = [c for c in ax24_cohort_activation.columns if c != "Opening Month"]
+
+for col in value_cols:
+
+    # Cohort size → nullable int
+    if col == "Cohort Size":
+        ax24_cohort_activation[col] = (
+            pd.to_numeric(ax24_cohort_activation[col], errors='coerce')
+              .round(0)
+              .astype('Int64')
+        )
+        continue
+
+    # Active counts → nullable int
+    if col.endswith("Active"):
+        ax24_cohort_activation[col] = (
+            pd.to_numeric(ax24_cohort_activation[col], errors='coerce')
+              .round(0)
+              .astype('Int64')
+        )
+        continue
+
+    # Spend / Balances → floats
+    if re.search(r"Balance|Spend$", col):
+        ax24_cohort_activation[col] = (
+            pd.to_numeric(ax24_cohort_activation[col], errors='coerce')
+              .astype(float)
+              .round(2)
+        )
+        continue
+
+    # Swipes → floats
+    if col.endswith("Avg Swipes"):
+        ax24_cohort_activation[col] = (
+            pd.to_numeric(ax24_cohort_activation[col], errors='coerce')
+              .astype(float)
+              .round(2)
+        )
+        continue
+
+    # Activation % (fraction 0–1)
+    if col.endswith("Activation %"):
+        s = pd.to_numeric(ax24_cohort_activation[col], errors='coerce')
+        if s.dropna().gt(1).mean() > 0.5:
+            s = s / 100.0
+        ax24_cohort_activation[col] = s
+        continue
+
+# -------------------------------------------------------
+# DISPLAY — Activation % NaN becomes blank (display copy)
+# -------------------------------------------------------
+
+ax24_display = ax24_cohort_activation.copy()
+
+for col in ax24_display.columns:
+    if col.endswith("Activation %"):
+        ax24_display[col] = ax24_display[col].apply(lambda v: v if pd.notna(v) else '')
+
+display_formatted(
+    ax24_display,
+    "ICS Stat Code O - Cohort Activation Analysis (M1, M3, M6, M12)"
+)
+
+# -------------------------------------------------------
+# PRINT SUMMARY
+# -------------------------------------------------------
+
+print(f"\n✅ Analysis completed")
+print(f"   Total Cohorts Analyzed: {len(ax24_cohort_activation)}")
+print(f"   Date Range: {opening_months[0]} to {opening_months[-1]}")
+
+print("\n📈 Average Activation Rates:")
+for m in ["M1", "M3", "M6", "M12"]:
+    col = f"{m} Activation %"
+    if col in ax24_cohort_activation.columns:
+        avg_val = ax24_cohort_activation[col].mean(skipna=True)
+        print(f"   {m}: {avg_val:.1%}")
