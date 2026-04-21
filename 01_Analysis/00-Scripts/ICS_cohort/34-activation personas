@@ -1,0 +1,97 @@
+# ============================================
+# A[X].34 - ICS STAT CODE O - ACTIVATION CATEGORIES
+# ============================================
+
+print("\n📊 A[X].34 - Categorizing ICS Stat Code O Accounts by Behavior...")
+
+# Get ICS Stat Code O accounts with debit cards opened in 2025
+ics_stat_o = data[(data['ICS Account'] == 'Yes') & (data['Stat Code'] == '0') & (data['Debit?'] == 'Yes')].copy()
+
+# Convert Date Opened to datetime
+ics_stat_o['Date Opened'] = pd.to_datetime(ics_stat_o['Date Opened'], errors='coerce')
+ics_stat_o['Opening Month'] = ics_stat_o['Date Opened'].dt.to_period('M').astype(str)
+
+# Filter to 2025 cohorts only - and only cohorts with at least 3 months of data
+ics_2025 = ics_stat_o[ics_stat_o['Opening Month'] >= '2025-01'].copy()
+
+# Categorize each account
+categories = []
+
+for idx, account in ics_2025.iterrows():
+    opening_date = pd.to_datetime(account['Opening Month'])
+    
+    # Check if account has at least 3 months of data
+    month_3_date = opening_date + pd.DateOffset(months=2)
+    month_3_str = month_3_date.strftime('%b%y')
+    
+    if month_3_str not in last_12_months:
+        continue  # Skip accounts without 3 months of data
+    
+    # Get M1 and M3 activity
+    month_1_str = opening_date.strftime('%b%y')
+    m1_swipes = account[f"{month_1_str} Swipes"] if f"{month_1_str} Swipes" in account else 0
+    m3_swipes = account[f"{month_3_str} Swipes"] if f"{month_3_str} Swipes" in account else 0
+    
+    # Categorize
+    if m1_swipes > 0 and m3_swipes > 0:
+        category = 'Fast Activator'  # Active in M1 and still active in M3
+    elif m1_swipes == 0 and m3_swipes > 0:
+        category = 'Slow Burner'  # Not active in M1 but active by M3
+    elif m1_swipes > 0 and m3_swipes == 0:
+        category = 'One and Done'  # Active in M1 but dropped off by M3
+    else:
+        category = 'Never Activator'  # Not active in M1 or M3
+    
+    categories.append({
+        'Account': account.name,
+        'Opening Month': account['Opening Month'],
+        'Category': category,
+        'M1 Swipes': m1_swipes,
+        'M3 Swipes': m3_swipes
+    })
+
+# Create summary by category
+category_df = pd.DataFrame(categories)
+
+if len(category_df) > 0:
+    category_summary = category_df.groupby('Category').agg({
+        'Account': 'count',
+        'M1 Swipes': 'sum',
+        'M3 Swipes': 'sum'
+    }).reset_index()
+    
+    category_summary.columns = ['Category', 'Account Count', 'Total M1 Swipes', 'Total M3 Swipes']
+    category_summary['% of Total'] = (category_summary['Account Count'] / len(category_df)).round(2)
+    
+    # Order by desirability
+    category_order = ['Fast Activator', 'Slow Burner', 'One and Done', 'Never Activator']
+    category_summary['Category'] = pd.Categorical(category_summary['Category'], categories=category_order, ordered=True)
+    ax28_categories = category_summary.sort_values('Category').reset_index(drop=True)
+    
+    # Add total row
+    total_row = pd.DataFrame({
+        'Category': ['Total'],
+        'Account Count': [ax28_categories['Account Count'].sum()],
+        'Total M1 Swipes': [ax28_categories['Total M1 Swipes'].sum()],
+        'Total M3 Swipes': [ax28_categories['Total M3 Swipes'].sum()],
+        '% of Total': [1.0]
+    })
+    
+    ax28_categories = pd.concat([ax28_categories, total_row], ignore_index=True)
+else:
+    ax28_categories = pd.DataFrame({
+        'Category': ['No data available'],
+        'Account Count': [0],
+        'Total M1 Swipes': [0],
+        'Total M3 Swipes': [0],
+        '% of Total': [0]
+    })
+
+# Display
+display_formatted(ax28_categories, "ICS Stat Code O - Account Activation Categories")
+
+print(f"\n✅ Analysis completed")
+if len(category_df) > 0:
+    print(f"   Accounts Categorized: {len(category_df):,}")
+    print(f"   Fast Activators: {len(category_df[category_df['Category'] == 'Fast Activator']):,}")
+    print(f"   Never Activators: {len(category_df[category_df['Category'] == 'Never Activator']):,}")
