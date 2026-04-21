@@ -2,59 +2,96 @@
 # MOMENTUM: Fastest Growing vs Declining Banks (Conference Edition)
 # ===========================================================================
 # Diverging horizontal bar chart. Growing = right (red). Declining = left (green).
-# No dollars. Uses transaction growth rate (last 3mo vs prev 3mo).
+# Uses a UNIFIED 3-month window (last 3 months of the dataset) so every
+# competitor is compared on the same dates. Underneath the chart we print
+# a detail table with absolute volumes so that "Capital One is declining"
+# can be read alongside "...but still the Nth largest competitor".
 
 if len(all_competitor_data) > 0:
     bank_categories = BANK_CATEGORIES
 
-    momentum_data = []
+    # -----------------------------------------------------------------------
+    # 1) Unified date windows — same recent_3 and previous_3 for every bank.
+    # -----------------------------------------------------------------------
+    if 'year_month' not in combined_df.columns:
+        combined_df = combined_df.assign(
+            year_month=pd.to_datetime(combined_df['transaction_date']).dt.to_period('M')
+        )
+    _all_months = sorted(combined_df['year_month'].dropna().unique())
 
-    for competitor, competitor_trans in all_competitor_data.items():
-        category = competitor_trans['competitor_category'].iloc[0]
-        if category not in bank_categories:
-            continue
+    if len(_all_months) < 6:
+        print("Insufficient data for momentum analysis (need 6+ months of transactions).")
+    else:
+        RECENT_3   = _all_months[-3:]
+        PREVIOUS_3 = _all_months[-6:-3]
 
-        if 'year_month' not in competitor_trans.columns:
-            competitor_trans['year_month'] = pd.to_datetime(
-                competitor_trans['transaction_date']
-            ).dt.to_period('M')
+        def _period_label(periods):
+            """'Jan26 - Mar26' style label from a list of pd.Period months."""
+            _starts = [p.strftime('%b%y') for p in periods]
+            return f"{_starts[0]} - {_starts[-1]}"
 
-        sorted_months = sorted(competitor_trans['year_month'].unique())
-        if len(sorted_months) < 6:
-            continue
+        RECENT_LABEL   = _period_label(RECENT_3)
+        PREVIOUS_LABEL = _period_label(PREVIOUS_3)
 
-        recent_3 = sorted_months[-3:]
-        previous_3 = sorted_months[-6:-3]
+        print(f"    Momentum window : RECENT ({RECENT_LABEL}) vs PREVIOUS ({PREVIOUS_LABEL})")
 
-        recent_txn = len(competitor_trans[competitor_trans['year_month'].isin(recent_3)])
-        prev_txn = len(competitor_trans[competitor_trans['year_month'].isin(previous_3)])
+        # -------------------------------------------------------------------
+        # 2) Per-competitor momentum — using the SAME window for every bank.
+        # -------------------------------------------------------------------
+        momentum_data = []
+        for competitor, competitor_trans in all_competitor_data.items():
+            category = competitor_trans['competitor_category'].iloc[0]
+            if category not in bank_categories:
+                continue
 
-        recent_acct = competitor_trans[
-            competitor_trans['year_month'].isin(recent_3)
-        ]['primary_account_num'].nunique()
+            if 'year_month' not in competitor_trans.columns:
+                competitor_trans['year_month'] = pd.to_datetime(
+                    competitor_trans['transaction_date']
+                ).dt.to_period('M')
 
-        txn_growth = ((recent_txn - prev_txn) / prev_txn * 100) if prev_txn > 0 else 0
+            _recent = competitor_trans[competitor_trans['year_month'].isin(RECENT_3)]
+            _prev   = competitor_trans[competitor_trans['year_month'].isin(PREVIOUS_3)]
 
-        # Minimum threshold: need at least 50 recent transactions to be meaningful
-        if recent_txn < 50:
-            continue
+            recent_txn  = len(_recent)
+            prev_txn    = len(_prev)
+            recent_acct = _recent['primary_account_num'].nunique()
+            prev_acct   = _prev['primary_account_num'].nunique()
+            recent_spend = float(_recent['amount'].sum())
+            prev_spend   = float(_prev['amount'].sum())
 
-        momentum_data.append({
-            'bank': competitor,
-            'category': category,
-            'txn_growth': txn_growth,
-            'recent_txn': recent_txn,
-            'recent_acct': recent_acct
-        })
+            txn_growth    = ((recent_txn  - prev_txn)  / prev_txn  * 100) if prev_txn  > 0 else 0
+            acct_growth   = ((recent_acct - prev_acct) / prev_acct * 100) if prev_acct > 0 else 0
+            spend_growth  = ((recent_spend - prev_spend) / prev_spend * 100) if prev_spend > 0 else 0
 
-    if len(momentum_data) > 0:
-        mdf = pd.DataFrame(momentum_data)
-        mdf['category_label'] = mdf['category'].str.replace('_', ' ').str.title()
+            # Require at least 50 recent txns so single-digit flutters don't
+            # show up as "+400% growth" from 5 → 25 transactions.
+            if recent_txn < 50:
+                continue
+
+            momentum_data.append({
+                'bank':          competitor,
+                'category':      category,
+                'recent_txn':    recent_txn,
+                'prev_txn':      prev_txn,
+                'txn_growth':    txn_growth,
+                'recent_acct':   recent_acct,
+                'prev_acct':     prev_acct,
+                'acct_growth':   acct_growth,
+                'recent_spend':  recent_spend,
+                'prev_spend':    prev_spend,
+                'spend_growth':  spend_growth,
+            })
+
+        if len(momentum_data) == 0:
+            mdf = pd.DataFrame()
+        else:
+            mdf = pd.DataFrame(momentum_data)
+            mdf['category_label'] = mdf['category'].str.replace('_', ' ').str.title()
 
         # Top 8 growers + Top 7 decliners (show both sides)
-        growers = mdf[mdf['txn_growth'] > 0].sort_values('txn_growth', ascending=False).head(8)
-        decliners = mdf[mdf['txn_growth'] < 0].sort_values('txn_growth', ascending=True).head(7)
-        show_df = pd.concat([growers, decliners]).sort_values('txn_growth', ascending=True)
+        growers = mdf[mdf['txn_growth'] > 0].sort_values('txn_growth', ascending=False).head(8) if len(mdf) else pd.DataFrame()
+        decliners = mdf[mdf['txn_growth'] < 0].sort_values('txn_growth', ascending=True).head(7) if len(mdf) else pd.DataFrame()
+        show_df = pd.concat([growers, decliners]).sort_values('txn_growth', ascending=True) if len(mdf) else pd.DataFrame()
 
         if len(show_df) > 0:
             # Shorten names
@@ -98,9 +135,11 @@ if len(all_competitor_data) > 0:
             # Center line
             ax.axvline(x=0, color=GEN_COLORS['dark_text'], linewidth=2, zorder=5)
 
-            # Labels
-            ax.set_xlabel("Transaction Growth (Last 3mo vs Previous 3mo)",
-                         fontsize=16, fontweight='bold', labelpad=12)
+            # Labels — surface the actual dates so the reader isn't guessing.
+            ax.set_xlabel(
+                f"Transaction Growth:  {RECENT_LABEL}  vs  {PREVIOUS_LABEL}",
+                fontsize=16, fontweight='bold', labelpad=12,
+            )
             ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:+.0f}%"))
 
             gen_clean_axes(ax)
@@ -131,14 +170,42 @@ if len(all_competitor_data) > 0:
 
             # Opportunity callout
             if len(decliners) > 0:
-                # BUG FIX: summing per-competitor recent_acct double-counted any
-                # account that used multiple declining banks. Count distinct
-                # accounts across ALL declining banks via nunique on competitor_txns.
+                # Distinct-count across ALL declining banks so one account active
+                # at multiple declining banks isn't counted multiple times.
                 _dec_names = set(decliners['bank'])
                 _dec_txns  = competitor_txns[competitor_txns['competitor_match'].isin(_dec_names)]
                 total_declining_acct = int(_dec_txns['primary_account_num'].nunique())
                 print(f"\n    OPPORTUNITY: {len(decliners)} banks losing momentum.")
                 print(f"    {total_declining_acct:,} accounts showing reduced competitor activity.")
                 print("    These customers may be ready to consolidate -- target with retention offers.")
-    else:
-        print("Insufficient data for momentum analysis (need 6+ months).")
+
+        # ---------------------------------------------------------------
+        # 3) Detail table — absolute volumes alongside growth %s so a
+        #    "declining" bank with 50,000 recent transactions doesn't get
+        #    confused with a "declining" bank that has 60. Capital One
+        #    should show as declining-but-still-huge here, answering the
+        #    "why does this look odd?" question directly.
+        # ---------------------------------------------------------------
+        if len(mdf) > 0:
+            _detail = mdf.sort_values('recent_txn', ascending=False).copy()
+            _detail['_trend'] = _detail['txn_growth'].apply(
+                lambda g: '↑ GROW' if g > 0 else ('↓ DEC' if g < 0 else '=')
+            )
+            _display = pd.DataFrame({
+                'Bank':                      _detail['bank'],
+                'Category':                  _detail['category_label'],
+                'Trend':                     _detail['_trend'],
+                f'Txns ({RECENT_LABEL})':    _detail['recent_txn'].map('{:,}'.format),
+                f'Txns ({PREVIOUS_LABEL})':  _detail['prev_txn'].map('{:,}'.format),
+                'Txn Growth %':              _detail['txn_growth'].map('{:+.1f}%'.format),
+                f'Accts ({RECENT_LABEL})':   _detail['recent_acct'].map('{:,}'.format),
+                'Acct Growth %':             _detail['acct_growth'].map('{:+.1f}%'.format),
+                f'Spend ({RECENT_LABEL})':   _detail['recent_spend'].map('${:,.0f}'.format),
+                'Spend Growth %':            _detail['spend_growth'].map('{:+.1f}%'.format),
+            })
+            try:
+                display_formatted(_display, f"Momentum Detail — {RECENT_LABEL} vs {PREVIOUS_LABEL}")
+            except (NameError, Exception):
+                print("\n--- Momentum Detail ---")
+                print(_display.to_string(index=False))
+
