@@ -62,11 +62,22 @@ def _activation_table(frame, label):
 
     return _tbl
 
+# Pre-format the milestone columns as percent strings (1 decimal) for
+# display — the column names are bare ('M1', 'M3', …) so the formatter
+# can't tell these are fractions and would otherwise render 0.6543210….
+def _format_for_display(tbl):
+    _disp = tbl.copy()
+    for _name, _ in _MILESTONES:
+        _disp[_name] = pd.to_numeric(_disp[_name], errors='coerce').map(
+            lambda v: f"{v:.1%}" if pd.notna(v) else ''
+        )
+    return _disp
+
 # ---- ICS target-Stat debit cohort -----------------------------------------
 _ics  = ics_cohort_debit(data)
 ics_activation_by_cohort = _activation_table(_ics, 'ICS')
 display_formatted(
-    ics_activation_by_cohort,
+    _format_for_display(ics_activation_by_cohort),
     f"ICS {STAT_LABEL} (Debit) — Activation % by Cohort × Milestone"
 )
 
@@ -76,7 +87,7 @@ if 'Debit?' in _non.columns:
     _non = _non[_non['Debit?'] == 'Yes']
 nonics_activation_by_cohort = _activation_table(_non, 'Non-ICS')
 display_formatted(
-    nonics_activation_by_cohort,
+    _format_for_display(nonics_activation_by_cohort),
     "Non-ICS (Debit) — Activation % by Cohort × Milestone"
 )
 
