@@ -6,12 +6,26 @@
 # picks up the new value automatically on next run.
 
 import re
+from datetime import datetime as _dt
 import numpy as np
 import pandas as pd
 
 # Match only monthly activity columns like "Apr25 Swipes" / "Mar26 Spend".
 # Excludes "Total Swipes", "Total Spend", "MonthlySwipes12", and similar rollups.
 _MONTHLY_COL_RE = re.compile(r'^[A-Za-z]{3}\d{2} (Swipes|Spend)$')
+
+# Defensive: if ics-00-config has not been re-run since ACTIVITY_END_DATE was
+# introduced, derive it here from last_12_months[-1]. Use strptime (NOT
+# pd.Period) — pandas Period treats the 2-digit year as year-of-era, which
+# produced the OutOfBoundsDatetime crashes in #63 / #64.
+try:
+    ACTIVITY_END_DATE
+except NameError:
+    _last_tag = last_12_months[-1]                              # e.g. 'Mar26'
+    _anchor   = _dt.strptime(_last_tag, '%b%y')                 # 2026-03-01
+    ACTIVITY_END_DATE = pd.Timestamp(_anchor) + pd.offsets.MonthEnd(0)
+    print(f"   (ics-02 derived ACTIVITY_END_DATE locally → {ACTIVITY_END_DATE.date()}; "
+          f"re-run ics-00-config for the canonical value.)")
 
 # =========================================================
 # Cohort filters
