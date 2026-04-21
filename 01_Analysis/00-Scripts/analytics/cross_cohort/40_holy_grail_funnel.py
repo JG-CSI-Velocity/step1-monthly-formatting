@@ -145,31 +145,32 @@ else:
         non_pct = [v / non_f['opened'] * 100 if non_f['opened'] else 0 for v in non_vals]
 
         # --------------------------------------------------------------
-        # Chart -- larger fonts across the board
+        # Chart -- fonts bumped substantially so it reads from a deck
         # --------------------------------------------------------------
-        fig, axes = plt.subplots(1, 2, figsize=(20, 9), sharey=True)
+        fig, axes = plt.subplots(1, 2, figsize=(24, 12), sharey=True)
 
         def _draw(ax, vals, pct, label, color):
             y = np.arange(len(steps))[::-1]
             width = np.array(pct) / 100.0
-            ax.barh(y, width, color=color, alpha=0.88, edgecolor='white', linewidth=1.4)
+            ax.barh(y, width, color=color, alpha=0.88, edgecolor='white', linewidth=1.6)
             for i, (v, p) in enumerate(zip(vals, pct)):
                 ax.text(min(width[i] + 0.012, 1.02), y[i],
                         f'{v:,}  ({p:.1f}%)',
                         va='center', ha='left',
-                        fontsize=16, fontweight='bold',
+                        fontsize=22, fontweight='bold',
                         color=GEN_COLORS['dark_text'])
             ax.set_yticks(y)
-            ax.set_yticklabels(steps, fontsize=15, fontweight='bold')
-            ax.set_xlim(0, 1.35)
+            ax.set_yticklabels(steps, fontsize=21, fontweight='bold')
+            ax.set_xlim(0, 1.45)
             ax.set_xticks([0, 0.25, 0.5, 0.75, 1.0])
-            ax.set_xticklabels(['0%', '25%', '50%', '75%', '100%'], fontsize=13)
-            ax.set_xlabel('% of opened accounts in scope', fontsize=14)
-            ax.set_title(label, fontsize=18, fontweight='bold',
-                         color=GEN_COLORS['dark_text'], pad=14)
+            ax.set_xticklabels(['0%', '25%', '50%', '75%', '100%'], fontsize=18)
+            ax.set_xlabel('% of opened accounts in scope',
+                          fontsize=20, fontweight='bold', labelpad=10)
+            ax.set_title(label, fontsize=24, fontweight='bold',
+                         color=GEN_COLORS['dark_text'], pad=18)
             for s in ('top', 'right'):
                 ax.spines[s].set_visible(False)
-            ax.tick_params(axis='both', labelsize=13)
+            ax.tick_params(axis='both', labelsize=18, length=6, width=1.2)
 
         _draw(axes[0], ics_vals, ics_pct,
               f'ICS   (opened in scope: {ics_f["opened"]:,})', GEN_COLORS['success'])
@@ -177,15 +178,15 @@ else:
               f'Non-ICS   (opened in scope: {non_f["opened"]:,})', GEN_COLORS['info'])
 
         fig.suptitle('Holy-Grail Funnel: Open -> Activate -> Mail -> Respond -> Tier-Up',
-                     fontsize=22, fontweight='bold',
-                     color=GEN_COLORS['dark_text'], y=1.01)
-        fig.text(0.5, -0.01,
+                     fontsize=30, fontweight='bold',
+                     color=GEN_COLORS['dark_text'], y=1.02)
+        fig.text(0.5, -0.015,
                  f'Scope: accounts opened between '
                  f'{_first_swipe_month.strftime("%b %Y")} and '
                  f'{_max_open.strftime("%b %Y")}  '
                  f'({"closed accts included" if INCLUDE_CLOSED_ACCOUNTS else "still-open accts only"}).  '
                  f'Needs >= {ACTIVATION_WINDOW_MONTHS} months of follow-up.',
-                 ha='center', fontsize=13, color=GEN_COLORS['muted'], style='italic')
+                 ha='center', fontsize=17, color=GEN_COLORS['muted'], style='italic')
 
         plt.tight_layout()
         plt.savefig('cross_cohort_40_funnel.png', dpi=160, bbox_inches='tight')
