@@ -1,0 +1,89 @@
+# ============================================
+# A[X].32 - ICS STAT CODE O - GROWTH PATTERNS
+# ============================================
+
+print("\n📊 A[X].32 - Analyzing ICS Stat Code O Growth Patterns...")
+
+# Get ICS Stat Code O accounts with debit cards opened in 2025
+ics_stat_o = data[(data['ICS Account'] == 'Yes') & (data['Stat Code'] == '0') & (data['Debit?'] == 'Yes')].copy()
+
+# Convert Date Opened to datetime
+ics_stat_o['Date Opened'] = pd.to_datetime(ics_stat_o['Date Opened'], errors='coerce')
+ics_stat_o['Opening Month'] = ics_stat_o['Date Opened'].dt.to_period('M').astype(str)
+
+# Filter to 2025 cohorts only
+ics_2025 = ics_stat_o[ics_stat_o['Opening Month'] >= '2025-01'].copy()
+
+# Calculate growth patterns for cohorts that have at least 6 months of data
+growth_patterns = []
+
+for opening_month in sorted(ics_2025['Opening Month'].unique()):
+    cohort = ics_2025[ics_2025['Opening Month'] == opening_month].copy()
+    opening_date = pd.to_datetime(opening_month)
+    
+    # Check if cohort has at least 6 months of data
+    month_6_date = opening_date + pd.DateOffset(months=5)
+    month_6_str = month_6_date.strftime('%b%y')
+    
+    if month_6_str not in last_12_months:
+        continue  # Skip cohorts that don't have 6 months yet
+    
+    cohort_row = {
+        'Opening Month': opening_month,
+        'Cohort Size': len(cohort)
+    }
+    
+    # Month 1
+    month_1_str = opening_date.strftime('%b%y')
+    swipe_col_m1 = f"{month_1_str} Swipes"
+    spend_col_m1 = f"{month_1_str} Spend"
+    
+    if swipe_col_m1 in cohort.columns:
+        cohort_row['M1 Avg Swipes'] = cohort[swipe_col_m1].mean()
+        cohort_row['M1 Avg Spend'] = cohort[spend_col_m1].mean()
+        cohort_row['M1 % Active'] = ((cohort[swipe_col_m1] > 0).sum() / len(cohort))
+    
+    # Month 3
+    month_3_date = opening_date + pd.DateOffset(months=2)
+    month_3_str = month_3_date.strftime('%b%y')
+    swipe_col_m3 = f"{month_3_str} Swipes"
+    spend_col_m3 = f"{month_3_str} Spend"
+    
+    if swipe_col_m3 in cohort.columns:
+        cohort_row['M3 Avg Swipes'] = cohort[swipe_col_m3].mean()
+        cohort_row['M3 Avg Spend'] = cohort[spend_col_m3].mean()
+        cohort_row['M3 % Active'] = ((cohort[swipe_col_m3] > 0).sum() / len(cohort))
+    
+    # Month 6
+    swipe_col_m6 = f"{month_6_str} Swipes"
+    spend_col_m6 = f"{month_6_str} Spend"
+    
+    if swipe_col_m6 in cohort.columns:
+        cohort_row['M6 Avg Swipes'] = cohort[swipe_col_m6].mean()
+        cohort_row['M6 Avg Spend'] = cohort[spend_col_m6].mean()
+        cohort_row['M6 % Active'] = ((cohort[swipe_col_m6] > 0).sum() / len(cohort))
+    
+    # Calculate growth rates
+    if 'M1 Avg Swipes' in cohort_row and 'M3 Avg Swipes' in cohort_row:
+        cohort_row['Swipe Growth M1→M3'] = ((cohort_row['M3 Avg Swipes'] - cohort_row['M1 Avg Swipes']) / cohort_row['M1 Avg Swipes']) if cohort_row['M1 Avg Swipes'] > 0 else 0
+        cohort_row['Spend Growth M1→M3'] = ((cohort_row['M3 Avg Spend'] - cohort_row['M1 Avg Spend']) / cohort_row['M1 Avg Spend']) if cohort_row['M1 Avg Spend'] > 0 else 0
+    
+    if 'M3 Avg Swipes' in cohort_row and 'M6 Avg Swipes' in cohort_row:
+        cohort_row['Swipe Growth M3→M6'] = ((cohort_row['M6 Avg Swipes'] - cohort_row['M3 Avg Swipes']) / cohort_row['M3 Avg Swipes']) if cohort_row['M3 Avg Swipes'] > 0 else 0
+        cohort_row['Spend Growth M3→M6'] = ((cohort_row['M6 Avg Spend'] - cohort_row['M3 Avg Spend']) / cohort_row['M3 Avg Spend']) if cohort_row['M3 Avg Spend'] > 0 else 0
+    
+    growth_patterns.append(cohort_row)
+
+ax27_growth = pd.DataFrame(growth_patterns)
+
+# Round values
+numeric_cols = [col for col in ax27_growth.columns if col not in ['Opening Month', 'Cohort Size']]
+for col in numeric_cols:
+    if col in ax27_growth.columns:
+        ax27_growth[col] = ax27_growth[col].round(2)
+
+# Display
+display_formatted(ax27_growth, "ICS Stat Code O - Growth Pattern Analysis (M1 vs M3 vs M6)")
+
+print(f"\n✅ Analysis completed")
+print(f"   Cohorts with 6+ months: {len(ax27_growth)}")
