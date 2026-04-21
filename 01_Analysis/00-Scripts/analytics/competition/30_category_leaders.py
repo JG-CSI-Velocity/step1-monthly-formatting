@@ -6,8 +6,45 @@
 
 if len(all_competitor_data) > 0 and len(summary_data) > 0:
     _sdf = pd.DataFrame(summary_data)
-    # Filter out payment ecosystems
-    _sdf = _sdf[~_sdf['category'].isin(PAYMENT_ECOSYSTEMS)].copy()
+
+    # --- Stricter filter (defensive) -------------------------------------
+    # Prior code used "not in PAYMENT_ECOSYSTEMS", which trusts the upstream
+    # category tags. If tag_competitors() ever mis-tags a BNPL/wallet/P2P
+    # service under a bank category (e.g. Affirm showing up as a
+    # big_national because of a client override or an unintended pattern
+    # match), the chart would feature it as a category leader.
+    #
+    # Switch to an allow-list on BANK_CATEGORIES AND a name-based deny-list
+    # of known ecosystem brands. Anything caught by the deny-list is
+    # printed so the upstream taxonomy can be corrected in cell 01.
+    _KNOWN_ECOSYSTEM_NAMES = [
+        # BNPL
+        'AFFIRM', 'KLARNA', 'AFTERPAY', 'SEZZLE', 'ZIP PAY', 'QUADPAY', 'SPLITIT',
+        # Wallets
+        'APPLE PAY', 'APPLE CASH', 'GOOGLE PAY', 'GOOGLE WALLET',
+        'SAMSUNG PAY', 'PAYPAL', 'VENMO', 'CASH APP', 'SQUARE CASH',
+        # P2P
+        'ZELLE',
+    ]
+    def _looks_like_ecosystem(name):
+        if not isinstance(name, str):
+            return False
+        _u = name.upper().strip()
+        return any(_u.startswith(p) for p in _KNOWN_ECOSYSTEM_NAMES)
+
+    # 1) Allow-list to bank categories only
+    _sdf_all = _sdf.copy()
+    _sdf = _sdf[_sdf['category'].isin(BANK_CATEGORIES)].copy()
+
+    # 2) Deny-list by merchant name for anything that slipped through
+    _miscategorized = _sdf[_sdf['competitor'].apply(_looks_like_ecosystem)]
+    if len(_miscategorized) > 0:
+        print("⚠️  Miscategorized competitors filtered from category leaders (check cell 01 config):")
+        for _, _row in _miscategorized.iterrows():
+            print(f"     - {_row['competitor']!r} tagged as '{_row['category']}'  "
+                  f"— should be wallets / p2p / bnpl")
+        _sdf = _sdf[~_sdf['competitor'].apply(_looks_like_ecosystem)].copy()
+
     _sdf['category_label'] = _sdf['category'].apply(clean_category)
     _sdf['norm_name'] = _sdf['competitor'].apply(normalize_competitor_name)
 
@@ -105,3 +142,14 @@ if len(all_competitor_data) > 0 and len(summary_data) > 0:
     _biggest = _top.iloc[-1]
     print(f"\n    INSIGHT: {_biggest['norm_name']} leads {_biggest['category_label']} "
           f"with ${_biggest['total_amount']:,.0f} ({_biggest['market_share']:.0f}% share).")
+
+    # Which bank categories had NO data in this dataset? Helps catch
+    # "missing local banks" cases where client-specific patterns didn't
+    # match anything in the merchant file.
+    _missing_cats = [c for c in BANK_CATEGORIES if c not in set(_sdf['category'])]
+    if _missing_cats:
+        print("\n    Categories with no matching competitors in this dataset:")
+        for _c in _missing_cats:
+            print(f"      - {clean_category(_c)}  ({_c})")
+        print("    If you expected competitors here, check the matching patterns "
+              "for this category in 01_competitor_config.py.")
