@@ -1,0 +1,123 @@
+
+# ============================================
+# A[X].24 - ICS STAT CODE O - ACTIVITY BY SOURCE & DEBIT
+# ============================================
+
+print("\n📊 A[X].24 - Analyzing ICS Stat Code O Activity by Source and Debit Status...")
+
+# Get ICS Stat Code O accounts with activity calculated
+ics_stat_o = data[
+    (data['ICS Account'] == 'Yes') &
+    (data['Stat Code'].astype(str).str.upper().str.strip() == '0')
+].copy()
+
+# Calculate total swipes and spend across last 12 months
+swipe_cols = [col for col in ics_stat_o.columns if 'Swipes' in col and any(month in col for month in last_12_months)]
+spend_cols = [col for col in ics_stat_o.columns if 'Spend' in col and any(month in col for month in last_12_months)]
+
+ics_stat_o['Total L12M Swipes'] = ics_stat_o[swipe_cols].sum(axis=1)
+ics_stat_o['Total L12M Spend']  = ics_stat_o[spend_cols].sum(axis=1)
+ics_stat_o['Active in L12M']    = ics_stat_o['Total L12M Swipes'] > 0
+
+# Handle blanks in Source (formerly ICS Source)
+ics_stat_o['Source'] = ics_stat_o['Source'].fillna('Blank')
+ics_stat_o.loc[ics_stat_o['Source'] == '', 'Source'] = 'Blank'
+
+# Build the detailed table
+detailed_rows = []
+
+# Get unique sources
+sources = ics_stat_o['Source'].unique()
+
+for source in sorted(sources):
+    source_data = ics_stat_o[ics_stat_o['Source'] == source]
+    
+    # Source total row
+    total_swipes  = source_data['Total L12M Swipes'].sum()
+    total_spend   = source_data['Total L12M Spend'].sum()
+    active_count  = source_data['Active in L12M'].sum()
+    account_count = len(source_data)
+    
+    detailed_rows.append({
+        'Source / Debit': source,
+        'Account Count': account_count,
+        'Total Swipes': total_swipes,
+        'Total Spend': total_spend,
+        'Active Accounts': active_count,
+        '% Active': (active_count / account_count) if account_count > 0 else 0,
+        'Avg Swipes per Account': source_data['Total L12M Swipes'].mean(),
+        'Avg Spend per Account': source_data['Total L12M Spend'].mean(),
+        'Avg Spend per Swipe': (total_spend / total_swipes) if total_swipes > 0 else 0
+    })
+    
+    # Debit Yes sub-row
+    debit_yes = source_data[source_data['Debit?'] == 'Yes']
+    if len(debit_yes) > 0:
+        yes_swipes = debit_yes['Total L12M Swipes'].sum()
+        yes_spend  = debit_yes['Total L12M Spend'].sum()
+        yes_active = debit_yes['Active in L12M'].sum()
+        yes_count  = len(debit_yes)
+        
+        detailed_rows.append({
+            'Source / Debit': '  --- Debit Yes',
+            'Account Count': yes_count,
+            'Total Swipes': yes_swipes,
+            'Total Spend': yes_spend,
+            'Active Accounts': yes_active,
+            '% Active': (yes_active / yes_count) if yes_count > 0 else 0,
+            'Avg Swipes per Account': debit_yes['Total L12M Swipes'].mean(),
+            'Avg Spend per Account': debit_yes['Total L12M Spend'].mean(),
+            'Avg Spend per Swipe': (yes_spend / yes_swipes) if yes_swipes > 0 else 0
+        })
+    
+    # Debit No sub-row
+    debit_no = source_data[source_data['Debit?'] == 'No']
+    if len(debit_no) > 0:
+        no_swipes = debit_no['Total L12M Swipes'].sum()
+        no_spend  = debit_no['Total L12M Spend'].sum()
+        no_active = debit_no['Active in L12M'].sum()
+        no_count  = len(debit_no)
+        
+        detailed_rows.append({
+            'Source / Debit': '  --- Debit No',
+            'Account Count': no_count,
+            'Total Swipes': no_swipes,
+            'Total Spend': no_spend,
+            'Active Accounts': no_active,
+            '% Active': (no_active / no_count) if no_count > 0 else 0,
+            'Avg Swipes per Account': debit_no['Total L12M Swipes'].mean(),
+            'Avg Spend per Account': debit_no['Total L12M Spend'].mean(),
+            'Avg Spend per Swipe': (no_spend / no_swipes) if no_swipes > 0 else 0
+        })
+
+ax20_source_debit_activity = pd.DataFrame(detailed_rows)
+
+# Round values
+ax20_source_debit_activity = ax20_source_debit_activity.round(2)
+
+# Add grand total row
+total_row = pd.DataFrame({
+    'Source / Debit': ['Grand Total'],
+    'Account Count': [ax20_source_debit_activity['Account Count'].sum()],
+    'Total Swipes': [ics_stat_o['Total L12M Swipes'].sum()],
+    'Total Spend': [ics_stat_o['Total L12M Spend'].sum()],
+    'Active Accounts': [ics_stat_o['Active in L12M'].sum()],
+    '% Active': [(ics_stat_o['Active in L12M'].sum() / len(ics_stat_o))],
+    'Avg Swipes per Account': [ics_stat_o['Total L12M Swipes'].mean()],
+    'Avg Spend per Account': [ics_stat_o['Total L12M Spend'].mean()],
+    'Avg Spend per Swipe': [
+        (ics_stat_o['Total L12M Spend'].sum() / ics_stat_o['Total L12M Swipes'].sum())
+        if ics_stat_o['Total L12M Swipes'].sum() > 0 else 0
+    ]
+}).round(2)
+
+ax20_source_debit_activity = pd.concat([ax20_source_debit_activity, total_row], ignore_index=True)
+
+# FIX: Prevent Styler NaN crash
+ax20_source_debit_activity = ax20_source_debit_activity.fillna(0)
+
+# Display
+display_formatted(ax20_source_debit_activity,
+                  "ICS Stat Code O - Activity by Source & Debit Status")
+
+print(f"\n✅ Analysis completed")
