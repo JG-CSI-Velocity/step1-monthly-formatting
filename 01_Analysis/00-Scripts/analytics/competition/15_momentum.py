@@ -101,11 +101,18 @@ if len(all_competitor_data) > 0:
 
             fig, ax = plt.subplots(figsize=(14, 9))
 
-            # Bar colors: red for growing, green for declining (opportunity)
-            bar_colors = [
-                GEN_COLORS['accent'] if g > 0 else GEN_COLORS['success']
-                for g in show_df['txn_growth']
-            ]
+            # Bar colors: single-hue heatmap keyed to recent account count.
+            # Darker = more accounts using that competitor (regardless of
+            # whether they're growing or declining). Direction is still
+            # conveyed by the left/right position of each bar.
+            import matplotlib as _mpl
+            _cmap = _mpl.colormaps.get_cmap('Blues')
+            _acct_vals = show_df['recent_acct'].astype(float).values
+            _acct_max  = float(_acct_vals.max()) if len(_acct_vals) and _acct_vals.max() > 0 else 1.0
+            # Squeeze into [0.25, 0.95] so the smallest bar isn't invisible-white
+            # and the largest isn't black.
+            _intensity = 0.25 + (_acct_vals / _acct_max) * 0.70
+            bar_colors = [_cmap(v) for v in _intensity]
 
             bars = ax.barh(
                 range(len(show_df)),
@@ -146,26 +153,36 @@ if len(all_competitor_data) > 0:
             ax.xaxis.grid(True, color=GEN_COLORS['grid'], linewidth=0.5, alpha=0.5)
             ax.set_axisbelow(True)
 
-            # Title
+            # Title — pushed up, with generous pad so the subtitle and the
+            # THREAT/OPPORTUNITY side labels don't crowd into it.
             ax.set_title("Competitive Momentum",
                          fontsize=28, fontweight='bold',
-                         color=GEN_COLORS['dark_text'], pad=20, loc='left')
-            ax.text(0.0, 0.97, "Who is gaining?  Who is losing?",
+                         color=GEN_COLORS['dark_text'], pad=44, loc='left')
+            # Subtitle lives ABOVE the axes (y=1.06) so it can't overlap bars.
+            ax.text(0.0, 1.06, "Who is gaining?  Who is losing?",
                     transform=ax.transAxes, fontsize=15,
                     color=GEN_COLORS['muted'], style='italic')
 
-            # Side labels
+            # Side labels — moved BELOW the chart so they don't collide with
+            # the title block. Placed just under the x-axis label via fig.text.
             x_max = show_df['txn_growth'].abs().max()
-            ax.text(x_max * 0.7, len(show_df) + 0.3,
+            ax.text(x_max * 0.7, -1.4,
                     "THREAT  -->",
-                    fontsize=14, fontweight='bold', color=GEN_COLORS['accent'],
-                    alpha=0.5, ha='center')
-            ax.text(-x_max * 0.7, len(show_df) + 0.3,
+                    fontsize=13, fontweight='bold', color=GEN_COLORS['accent'],
+                    alpha=0.55, ha='center')
+            ax.text(-x_max * 0.7, -1.4,
                     "<--  OPPORTUNITY",
-                    fontsize=14, fontweight='bold', color=GEN_COLORS['success'],
-                    alpha=0.5, ha='center')
+                    fontsize=13, fontweight='bold', color=GEN_COLORS['success'],
+                    alpha=0.55, ha='center')
+
+            # Bubble-size-equivalent legend text for the heatmap
+            ax.text(0.99, 1.06,
+                    "Darker bars = more accounts using that competitor",
+                    transform=ax.transAxes, fontsize=11,
+                    color=GEN_COLORS['muted'], style='italic', ha='right')
 
             plt.tight_layout()
+            plt.subplots_adjust(top=0.86, bottom=0.14)   # breathing room
             plt.show()
 
             # Opportunity callout
