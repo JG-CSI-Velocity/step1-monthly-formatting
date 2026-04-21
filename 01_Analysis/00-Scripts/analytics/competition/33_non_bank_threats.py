@@ -31,15 +31,29 @@ if len(all_competitor_data) > 0:
     if len(_nb_rows) > 0:
         _nbdf = pd.DataFrame(_nb_rows)
 
-        # Roll up normalized names
+        # Roll up normalized names. BUG FIX: accounts routinely use multiple
+        # ecosystem services (Apple Pay + Venmo + PayPal + Cash App), so
+        # summing per-variant unique_accounts over-counts severely. Rebuild
+        # via nunique on the ecosystem txn subset keyed by normalized service.
+        _eco_txns = competitor_txns[competitor_txns['competitor_category'].isin(_ecosystem_cats)]
+        _nbdf_accts = (
+            _eco_txns.assign(
+                _svc=_eco_txns['competitor_match'].apply(normalize_competitor_name)
+            )
+            .groupby('_svc')['primary_account_num'].nunique()
+            .rename('unique_accounts')
+            .reset_index()
+            .rename(columns={'_svc': 'service'})
+        )
         _nbdf = (
             _nbdf.groupby(['service', 'category'], as_index=False)
             .agg(
                 total_spend=('total_spend', 'sum'),
-                unique_accounts=('unique_accounts', 'sum'),
                 transactions=('transactions', 'sum'),
             )
+            .merge(_nbdf_accts, on='service', how='left')
         )
+        _nbdf['unique_accounts'] = _nbdf['unique_accounts'].fillna(0).astype(int)
 
         _nbdf['penetration_pct'] = _nbdf['unique_accounts'] / total_accounts * 100
         _nbdf['spend_per_mo'] = _nbdf['total_spend'] / _n_months
@@ -110,16 +124,28 @@ if len(all_competitor_data) > 0:
         plt.show()
 
         # ----- Category-level summary -----
+        # BUG FIX: category-level accounts also can't be a sum across services
+        # — many accounts use multiple wallets/P2P/BNPL. Compute via nunique
+        # on the ecosystem txn subset keyed by category.
+        _cat_accts = (
+            _eco_txns.groupby('competitor_category')['primary_account_num']
+            .nunique()
+            .rename('accounts')
+        )
+        # Map raw category → display label the same way _nbdf did via clean_category
+        _cat_accts.index = _cat_accts.index.map(clean_category)
+
         _cat_summary = (
             _nbdf.groupby('category_label')
             .agg(
                 services=('service', 'nunique'),
-                accounts=('unique_accounts', 'sum'),
                 total_spend=('total_spend', 'sum'),
                 spend_per_mo=('spend_per_mo', 'sum'),
             )
+            .join(_cat_accts, how='left')
             .sort_values('accounts', ascending=False)
         )
+        _cat_summary['accounts'] = _cat_summary['accounts'].fillna(0).astype(int)
 
         print(f"\n    NON-BANK ECOSYSTEM SUMMARY ({_ds_label}):")
         for cat_label, row in _cat_summary.iterrows():
@@ -129,8 +155,10 @@ if len(all_competitor_data) > 0:
                   f"${row['total_spend']:>12,.0f} total  "
                   f"${row['spend_per_mo']:>10,.0f}/mo")
 
-        _total_nb_accts = _nbdf['unique_accounts'].sum()
-        _total_nb_spend = _nbdf['total_spend'].sum()
+        # BUG FIX: grand total must be distinct-count across ALL ecosystem
+        # services, not sum of per-service counts.
+        _total_nb_accts = int(_eco_txns['primary_account_num'].nunique())
+        _total_nb_spend = float(_nbdf['total_spend'].sum())
         print(f"\n    Combined non-bank footprint: {_total_nb_accts:,} member-relationships, "
               f"${_total_nb_spend:,.0f} total spend.")
         print("    These services handle payments, transfers, and credit traditionally done by banks.")

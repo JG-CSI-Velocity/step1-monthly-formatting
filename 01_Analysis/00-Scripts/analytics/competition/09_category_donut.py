@@ -8,9 +8,19 @@ if len(all_competitor_data) > 0:
 
     cat_agg = summary_df.groupby('category').agg({
         'total_transactions': 'sum',
-        'unique_accounts': 'sum',
-        'competitor': 'count'
+        'competitor': 'count',
     }).sort_values('total_transactions', ascending=False)
+
+    # BUG FIX: do NOT sum `unique_accounts` across per-competitor rows —
+    # an account using 3 Big Nationals would be counted 3× in that category.
+    # Compute per-category distinct accounts from competitor_txns directly.
+    _cat_accts = (
+        competitor_txns.groupby('competitor_category')['primary_account_num']
+        .nunique()
+        .rename('unique_accounts')
+    )
+    cat_agg = cat_agg.join(_cat_accts, how='left')
+    cat_agg['unique_accounts'] = cat_agg['unique_accounts'].fillna(0).astype(int)
 
     cat_agg['pct'] = cat_agg['total_transactions'] / cat_agg['total_transactions'].sum() * 100
     cat_agg.index = cat_agg.index.str.replace('_', ' ').str.title()

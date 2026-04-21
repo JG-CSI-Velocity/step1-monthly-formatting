@@ -149,7 +149,12 @@ if len(all_competitor_data) > 0:
             plt.show()
 
             # Summary
-            total_opp_accounts = declining['unique_accounts'].sum()
+            # BUG FIX: summing per-competitor unique_accounts double-counted any
+            # account that used multiple declining banks. Distinct-count across
+            # competitor_txns filtered to declining names.
+            _dec_names_opp = set(declining['competitor']) if 'competitor' in declining.columns else set(declining.index)
+            _dec_txns_opp  = competitor_txns[competitor_txns['competitor_match'].isin(_dec_names_opp)]
+            total_opp_accounts = int(_dec_txns_opp['primary_account_num'].nunique())
             avg_decline = declining['txn_growth'].mean()
             print(f"\n    OPPORTUNITY SUMMARY:")
             print(f"    {len(declining)} competitors declining  |  {total_opp_accounts:,} accounts in play")

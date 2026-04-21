@@ -31,15 +31,27 @@ if len(all_competitor_data) > 0:
     if len(_rows) > 0:
         _mdf = pd.DataFrame(_rows)
 
-        # Roll up normalized names
+        # Roll up normalized names. BUG FIX: sum of per-variant unique_accounts
+        # can push penetration_pct over 100% when accounts use multiple variants.
+        # Rebuild via nunique on competitor_txns keyed by the normalized name.
+        _mdf_accts = (
+            competitor_txns.assign(
+                _nb=competitor_txns['competitor_match'].apply(normalize_competitor_name)
+            )
+            .groupby('_nb')['primary_account_num'].nunique()
+            .rename('unique_accounts')
+            .reset_index()
+            .rename(columns={'_nb': 'bank'})
+        )
         _mdf = (
             _mdf.groupby(['bank', 'category'], as_index=False)
             .agg(
                 total_spend=('total_spend', 'sum'),
-                unique_accounts=('unique_accounts', 'sum'),
                 transactions=('transactions', 'sum'),
             )
+            .merge(_mdf_accts, on='bank', how='left')
         )
+        _mdf['unique_accounts'] = _mdf['unique_accounts'].fillna(0).astype(int)
 
         _mdf['penetration_pct'] = _mdf['unique_accounts'] / total_accounts * 100
         _mdf['spend_per_mo'] = _mdf['total_spend'] / _n_months

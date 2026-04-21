@@ -61,15 +61,30 @@ if len(all_competitor_data) > 0:
         raw_df['normalized_bank'] = raw_df['competitor'].apply(normalize_competitor_name)
         raw_df['growth_weighted'] = raw_df['growth_rate'] * raw_df['total_spend']
 
+        # BUG FIX: summing `unique_accounts` across variant rows double-counts
+        # accounts that used >1 variant of the same bank (CHIME + CHIME BANK).
+        # Rebuild from competitor_txns using nunique keyed on normalized_bank.
+        _normalized_txns = competitor_txns.assign(
+            _nb=competitor_txns['competitor_match'].apply(normalize_competitor_name)
+        )
+        _correct_accts = (
+            _normalized_txns.groupby('_nb')['primary_account_num']
+            .nunique()
+            .rename('unique_accounts')
+            .reset_index()
+            .rename(columns={'_nb': 'normalized_bank'})
+        )
+
         rolled = (
             raw_df.groupby(['normalized_bank', 'category'], as_index=False)
             .agg(
                 total_spend=('total_spend', 'sum'),
-                unique_accounts=('unique_accounts', 'sum'),
                 transaction_count=('transaction_count', 'sum'),
                 growth_weighted=('growth_weighted', 'sum'),
             )
+            .merge(_correct_accts, on='normalized_bank', how='left')
         )
+        rolled['unique_accounts'] = rolled['unique_accounts'].fillna(0).astype(int)
         rolled['growth_rate'] = rolled.apply(
             lambda r: r['growth_weighted'] / r['total_spend'] if r['total_spend'] > 0 else 0, axis=1
         )

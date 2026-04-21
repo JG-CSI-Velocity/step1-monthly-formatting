@@ -27,15 +27,28 @@ if len(all_competitor_data) > 0:
     if len(_spend_rows) > 0:
         _sdf = pd.DataFrame(_spend_rows)
 
-        # Roll up normalized names
+        # Roll up normalized names. BUG FIX: sum of per-variant unique_accounts
+        # double-counts any account that appeared under >1 variant of the same
+        # bank. Rebuild unique_accounts from competitor_txns via nunique on the
+        # normalized key.
+        _sdf_accts = (
+            competitor_txns.assign(
+                _nb=competitor_txns['competitor_match'].apply(normalize_competitor_name)
+            )
+            .groupby('_nb')['primary_account_num'].nunique()
+            .rename('unique_accounts')
+            .reset_index()
+            .rename(columns={'_nb': 'bank'})
+        )
         _sdf = (
             _sdf.groupby(['bank', 'category'], as_index=False)
             .agg(
                 total_spend=('total_spend', 'sum'),
-                unique_accounts=('unique_accounts', 'sum'),
                 transactions=('transactions', 'sum'),
             )
+            .merge(_sdf_accts, on='bank', how='left')
         )
+        _sdf['unique_accounts'] = _sdf['unique_accounts'].fillna(0).astype(int)
 
         _sdf['spend_per_mo'] = _sdf['total_spend'] / _n_months
         _sdf['avg_txn'] = _sdf['total_spend'] / _sdf['transactions']

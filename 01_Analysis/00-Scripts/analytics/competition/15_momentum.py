@@ -131,7 +131,12 @@ if len(all_competitor_data) > 0:
 
             # Opportunity callout
             if len(decliners) > 0:
-                total_declining_acct = decliners['recent_acct'].sum()
+                # BUG FIX: summing per-competitor recent_acct double-counted any
+                # account that used multiple declining banks. Count distinct
+                # accounts across ALL declining banks via nunique on competitor_txns.
+                _dec_names = set(decliners['bank'])
+                _dec_txns  = competitor_txns[competitor_txns['competitor_match'].isin(_dec_names)]
+                total_declining_acct = int(_dec_txns['primary_account_num'].nunique())
                 print(f"\n    OPPORTUNITY: {len(decliners)} banks losing momentum.")
                 print(f"    {total_declining_acct:,} accounts showing reduced competitor activity.")
                 print("    These customers may be ready to consolidate -- target with retention offers.")
