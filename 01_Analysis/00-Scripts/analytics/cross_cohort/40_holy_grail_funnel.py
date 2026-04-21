@@ -113,10 +113,13 @@ else:
             return ((sw > 0) & in_window).any(axis=1)
 
         def _funnel(frame):
+            # Strict-subset funnel: each step is a subset of the previous.
+            # opened >= activated >= mailed >= responded >= tier_up.
+            # Step-to-step ratios are therefore always <= 100%.
             activated = _activated_mask(frame)
-            mailed = frame['ever_mailed'].to_numpy()
+            mailed = frame['ever_mailed'].to_numpy() & activated
             responded = frame['ever_responded'].to_numpy() & mailed
-            tier_up = (frame['tier_rank_delta'].fillna(0).to_numpy() > 0)
+            tier_up = (frame['tier_rank_delta'].fillna(0).to_numpy() > 0) & responded
             return {
                 'opened': len(frame),
                 'activated': int(activated.sum()),
