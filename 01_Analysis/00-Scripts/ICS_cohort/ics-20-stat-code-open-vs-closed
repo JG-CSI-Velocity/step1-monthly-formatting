@@ -1,0 +1,67 @@
+# ============================================
+# ics-20-stat-code-open-vs-closed — Stat Code × Open/Closed cross-tab within ICS
+# ============================================
+# Supersedes: ax-18-open vs closed.
+# Depends on: ics-00-config, ics-01-normalize, ics-02-helpers.
+
+print("\n📊 ics-20 — Stat Code by Open/Closed status within ICS...")
+
+ics_accounts = data[data['ICS Account'] == 'Yes'].copy()
+ics_accounts['Status'] = np.where(
+    ics_accounts['Date Closed'].notna(), 'Closed', 'Open'
+)
+
+stat_status = (
+    ics_accounts.groupby(['Stat Code', 'Status'])
+                .size()
+                .unstack(fill_value=0)
+)
+for _col in ['Open', 'Closed']:
+    if _col not in stat_status.columns:
+        stat_status[_col] = 0
+
+stat_status['Total']    = stat_status[['Open', 'Closed']].sum(axis=1)
+stat_status['% Open']   = (stat_status['Open']   / stat_status['Total']).round(2)
+stat_status['% Closed'] = (stat_status['Closed'] / stat_status['Total']).round(2)
+
+stat_code_open_vs_closed = (
+    stat_status.reset_index()
+               .sort_values('Total', ascending=False)
+               .reset_index(drop=True)
+)
+
+_t_open   = int(stat_code_open_vs_closed['Open'].sum())
+_t_closed = int(stat_code_open_vs_closed['Closed'].sum())
+_t_total  = int(stat_code_open_vs_closed['Total'].sum())
+total_row = pd.DataFrame({
+    'Stat Code': ['Total'],
+    'Closed':    [_t_closed],
+    'Open':      [_t_open],
+    'Total':     [_t_total],
+    '% Open':    [round(_t_open   / _t_total, 2) if _t_total else 0],
+    '% Closed':  [round(_t_closed / _t_total, 2) if _t_total else 0],
+})
+stat_code_open_vs_closed = pd.concat(
+    [stat_code_open_vs_closed, total_row], ignore_index=True
+)
+
+display_formatted(
+    stat_code_open_vs_closed,
+    "ICS — Stat Code by Open/Closed Status"
+)
+
+# Surface the non-target-Stat closure rate (old cell had this hardcoded).
+_non_target = stat_code_open_vs_closed[
+    (stat_code_open_vs_closed['Stat Code'] != 'Total')
+    & (stat_code_open_vs_closed['Stat Code'].astype(str).str.upper().str.strip()
+       != str(ICS_STAT_CODE).upper())
+]
+_non_open   = int(_non_target['Open'].sum())
+_non_closed = int(_non_target['Closed'].sum())
+_non_total  = _non_open + _non_closed
+
+print(f"\n✅ Analysis completed")
+print(f"   Non-{STAT_LABEL} ICS accounts: open={_non_open:,}  closed={_non_closed:,}  "
+      f"total={_non_total:,}")
+if _non_total > 0:
+    print(f"   Non-{STAT_LABEL} % closed: {_non_closed / _non_total:.1%}")

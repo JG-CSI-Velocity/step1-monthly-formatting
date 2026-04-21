@@ -1,0 +1,89 @@
+# ============================================
+# ics-19-open-vs-closed-duration — ICS accounts, Open vs Closed by duration bucket
+# ============================================
+# Supersedes: ax-17-open vs closed.
+# Depends on: ics-00-config, ics-01-normalize, ics-02-helpers.
+#
+# Covers ALL ICS accounts (not just target stat) but calls out how many
+# closed accounts were NOT at ICS_STAT_CODE — this is the "Closed (Non-target)"
+# column that used to hardcode letter 'O'.
+
+print("\n📊 ics-19 — ICS open vs closed by duration...")
+
+ics_accounts = data[data['ICS Account'] == 'Yes'].copy()
+
+# Duration = (Date Closed − Date Opened) for closed rows,
+#            (end-of-activity-window − Date Opened) for still-open rows.
+_anchor = pd.Period(last_12_months[-1], freq='M').to_timestamp(how='end')
+_closed_mask = ics_accounts['Date Closed'].notna()
+ics_accounts['Duration Days'] = np.where(
+    _closed_mask,
+    (ics_accounts['Date Closed'] - ics_accounts['Date Opened']).dt.days,
+    (_anchor - ics_accounts['Date Opened']).dt.days,
+)
+ics_accounts['Duration Range'] = ics_accounts['Duration Days'].map(_age_bucket)
+ics_accounts['Status'] = np.where(_closed_mask, 'Closed', 'Open')
+ics_accounts['Is Target Stat'] = (
+    ics_accounts['Stat Code'].astype(str).str.upper().str.strip()
+    == str(ICS_STAT_CODE).upper()
+)
+
+# Per-bucket rows in canonical order.
+rows = []
+for _bucket in AGE_RANGE_ORDER:
+    _sub = ics_accounts[ics_accounts['Duration Range'] == _bucket]
+    if _sub.empty:
+        continue
+    _open   = int((_sub['Status'] == 'Open').sum())
+    _closed = int((_sub['Status'] == 'Closed').sum())
+    _closed_non_target = int(
+        ((_sub['Status'] == 'Closed') & (~_sub['Is Target Stat'])).sum()
+    )
+    _tot = _open + _closed
+    rows.append({
+        'Label':                            _bucket,
+        'Open Count':                       _open,
+        'Closed Count':                     _closed,
+        f'Closed (Non-{STAT_LABEL})':       _closed_non_target,
+        'Total':                            _tot,
+        'Closed_Pct':                       (_closed / _tot) if _tot else 0.0,
+    })
+
+cols = ['Label', 'Open Count', 'Closed Count',
+        f'Closed (Non-{STAT_LABEL})', 'Total', 'Closed_Pct']
+open_vs_closed_duration = pd.DataFrame(rows).reindex(columns=cols)
+
+# Totals row.
+_total_open   = int(open_vs_closed_duration['Open Count'].sum())
+_total_closed = int(open_vs_closed_duration['Closed Count'].sum())
+_total_ct     = int(open_vs_closed_duration['Total'].sum())
+_total_non    = int(open_vs_closed_duration[f'Closed (Non-{STAT_LABEL})'].sum())
+
+total_row = pd.DataFrame([{
+    'Label':                          'Total',
+    'Open Count':                     _total_open,
+    'Closed Count':                   _total_closed,
+    f'Closed (Non-{STAT_LABEL})':     _total_non,
+    'Total':                          _total_ct,
+    'Closed_Pct':                     (_total_closed / _total_ct) if _total_ct else 0.0,
+}])[cols]
+open_vs_closed_duration = pd.concat(
+    [open_vs_closed_duration, total_row], ignore_index=True
+)
+
+# Numeric hardening.
+for _c in cols[1:]:
+    open_vs_closed_duration[_c] = pd.to_numeric(
+        open_vs_closed_duration[_c], errors='coerce'
+    )
+
+display_formatted(
+    open_vs_closed_duration,
+    "ICS — Open vs Closed Duration Analysis"
+)
+
+print(f"\n✅ Analysis completed")
+print(f"   Total ICS                          : {len(ics_accounts):,}")
+print(f"   Open                               : {_total_open:,}")
+print(f"   Closed                             : {_total_closed:,}")
+print(f"   Closed (Non-{STAT_LABEL})          : {_total_non:,}")
