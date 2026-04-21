@@ -23,8 +23,13 @@ ICS_STAT_CODE = 'O'
 COHORT_START_YEAR  = None          # e.g. 2024
 COHORT_START_MONTH = None          # e.g. "2024-07"
 
-# (3) Floor used when COHORT_START_* are both None.
-#     We still don't want pre-historic data polluting the cohort grid.
+# (3) Data floor — applied data-wide by ics-01-normalize.
+#     Every row with Date Opened < COHORT_FLOOR is dropped during
+#     normalization, so no downstream cell (age buckets, balance-by-age,
+#     duration, etc.) can ever see pre-floor accounts.
+#     Also used as the fallback for COHORT_START when neither the
+#     YEAR nor the MONTH knob is set.
+#     Set to None to disable the data floor entirely.
 COHORT_FLOOR = "2020-01"
 
 # (4) Activity window — the rolling period used by every "last-N-months"

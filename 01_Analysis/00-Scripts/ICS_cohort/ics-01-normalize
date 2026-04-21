@@ -49,6 +49,20 @@ for _col in ['Date Opened', 'Date Closed']:
     if _col in data.columns:
         data[_col] = pd.to_datetime(data[_col], errors='coerce')
 
+# ---------- Data floor: drop accounts opened before COHORT_FLOOR ----------
+# This is applied data-wide (NOT just cohort cells) so that age buckets
+# like "10+ years" can't be populated when the floor is 2020-01.
+# Rows with missing Date Opened are preserved — only known-pre-floor rows
+# are dropped. Set COHORT_FLOOR = None in ics-00-config to disable.
+_dropped_pre_floor = 0
+if COHORT_FLOOR and 'Date Opened' in data.columns:
+    _floor_ts = pd.Timestamp(COHORT_FLOOR)
+    _drop_mask = data['Date Opened'].notna() & (data['Date Opened'] < _floor_ts)
+    _dropped_pre_floor = int(_drop_mask.sum())
+    if _dropped_pre_floor:
+        data.drop(data.index[_drop_mask], inplace=True)
+        data.reset_index(drop=True, inplace=True)
+
 # ---------- Balance columns -----------------------------------------------
 for _col in ['Avg Bal', 'Curr Bal']:
     if _col in data.columns:
@@ -67,7 +81,13 @@ for _col in _swipe_cols + _spend_cols:
 # ---------- Summary -------------------------------------------------------
 _after_rows = len(data)
 
-print(f"   Rows           : {_before_rows:,} (unchanged: {_before_rows == _after_rows})")
+if _dropped_pre_floor:
+    print(f"   Rows           : {_before_rows:,} → {_after_rows:,}  "
+          f"(dropped {_dropped_pre_floor:,} with Date Opened < {COHORT_FLOOR})")
+else:
+    print(f"   Rows           : {_before_rows:,} (no rows pre-{COHORT_FLOOR})"
+          if COHORT_FLOOR else
+          f"   Rows           : {_before_rows:,} (data floor disabled)")
 print(f"   Yes/No columns : {[c for c in ['ICS Account','Debit?','Business?'] if c in data.columns]}")
 print(f"   Date columns   : {[c for c in ['Date Opened','Date Closed'] if c in data.columns]}")
 print(f"   Balance cols   : {[c for c in ['Avg Bal','Curr Bal'] if c in data.columns]}")
