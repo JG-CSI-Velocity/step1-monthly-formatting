@@ -469,9 +469,17 @@ class RegEDimensions(AnalysisModule):
                 }
             )
         result = pd.DataFrame(rows)
-        if not result.empty:
-            result = result.sort_values("Total Accounts", ascending=False)
-            result = total_row(result, "Product Code")
+        if result.empty:
+            return [
+                AnalysisResult(
+                    slide_id="A8.7",
+                    title="Reg E by Product Code",
+                    success=False,
+                    error="No product code groups with Reg E data",
+                )
+            ]
+        result = result.sort_values("Total Accounts", ascending=False)
+        result = total_row(result, "Product Code")
 
         # Chart -- top 15
         chart_path = None
