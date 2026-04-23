@@ -4,42 +4,21 @@
 # Named ranking of the top 10 competitor institutions by transaction volume.
 # Excludes wallets + P2P; BNPL is retained so Affirm/Klarna/Afterpay can
 # appear alongside banks on the leaderboard.
+#
+# Assumes competitor_txns, GEN_COLORS, CATEGORY_PALETTE are in globals.
 # ===========================================================================
 
-from pathlib import Path
 import matplotlib.pyplot as plt
 from matplotlib.patches import FancyBboxPatch
 
+EXCLUDE_CATS = ('wallets', 'p2p')
+core_txns = competitor_txns[~competitor_txns['competitor_category'].isin(EXCLUDE_CATS)].copy()
+excluded_txns = len(competitor_txns) - len(core_txns)
+excluded_pct = excluded_txns / max(len(competitor_txns), 1) * 100
+SCOPE_NOTE = (f"Excludes wallets + P2P ({excluded_txns:,} txns, "
+              f"{excluded_pct:.1f}% of competitor activity). BNPL retained.")
 
-def _load_core_bootstrap():
-    try:
-        here = Path(__file__).resolve().parent
-    except NameError:
-        here = Path.cwd()
-    bp = here / '_core_bootstrap.py'
-    if not bp.exists():
-        for p in [here, *here.parents[:10]]:
-            cand = p / '_core_bootstrap.py'
-            if cand.exists():
-                bp = cand; break
-            cand = p / 'competition' / '_core_bootstrap.py'
-            if cand.exists():
-                bp = cand; break
-            hits = list(p.glob('**/_core_bootstrap.py'))
-            if hits:
-                bp = hits[0]; break
-    if not bp.exists():
-        raise FileNotFoundError(
-            "Cannot find _core_bootstrap.py. Place it next to this cell."
-        )
-    exec(compile(bp.read_text(), str(bp), 'exec'), globals())
-
-
-_load_core_bootstrap()
-
-if not _BOOT_OK:
-    print("    Skipping -- required inputs missing.")
-elif len(core_txns) == 0:
+if len(core_txns) == 0:
     print("    No core-competition transactions. Skipping.")
 else:
     top10 = (
@@ -63,7 +42,7 @@ else:
 
     ax.text(0.3, 0, "Top 10 Core Competitors — by Transaction Volume",
             fontsize=26, fontweight='bold', color=GEN_COLORS['dark_text'])
-    ax.text(0.3, 0.7, CORE_SCOPE_NOTE,
+    ax.text(0.3, 0.7, SCOPE_NOTE,
             fontsize=13, color=GEN_COLORS['muted'], style='italic')
 
     headers = ['Rank', 'Competitor', 'Transactions', 'Accounts', 'Reach %',

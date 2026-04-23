@@ -5,48 +5,22 @@
 # (Zelle). KEEPS BNPL (Affirm, Klarna, Afterpay) because BNPL balances
 # substitute for credit-card / line-of-credit products.
 #
-# For a strict banks-only view (no BNPL either), filter core_txns further
-# via BANK_CATEGORIES after the bootstrap.
+# Assumes competitor_txns, combined_df, GEN_COLORS, CATEGORY_PALETTE are
+# already in globals (run 01 -> 02 -> 06 first, like every other cell here).
 # ===========================================================================
 
-from pathlib import Path
 from matplotlib.patches import FancyBboxPatch
 import matplotlib.pyplot as plt
 
+EXCLUDE_CATS = ('wallets', 'p2p')
+core_txns = competitor_txns[~competitor_txns['competitor_category'].isin(EXCLUDE_CATS)].copy()
+excluded_txns = len(competitor_txns) - len(core_txns)
+excluded_pct = excluded_txns / max(len(competitor_txns), 1) * 100
+SCOPE_NOTE = (f"Excludes wallets + P2P ({excluded_txns:,} txns, "
+              f"{excluded_pct:.1f}% of competitor activity). BNPL retained.")
 
-# ---------------------------------------------------------------------------
-# Locate + exec the shared core-bootstrap that defines `core_txns`,
-# `combined_df`, `CORE_SCOPE_NOTE`, `CORE_EXCLUDED_TXNS`, `_BOOT_OK`, etc.
-# ---------------------------------------------------------------------------
-def _load_core_bootstrap():
-    try:
-        here = Path(__file__).resolve().parent
-    except NameError:
-        here = Path.cwd()
-    bp = here / '_core_bootstrap.py'
-    if not bp.exists():
-        for p in [here, *here.parents[:10]]:
-            cand = p / '_core_bootstrap.py'
-            if cand.exists():
-                bp = cand; break
-            cand = p / 'competition' / '_core_bootstrap.py'
-            if cand.exists():
-                bp = cand; break
-            hits = list(p.glob('**/_core_bootstrap.py'))
-            if hits:
-                bp = hits[0]; break
-    if not bp.exists():
-        raise FileNotFoundError(
-            "Cannot find _core_bootstrap.py. Place it next to this cell "
-            "(competition/_core_bootstrap.py)."
-        )
-    exec(compile(bp.read_text(), str(bp), 'exec'), globals())
-
-
-_load_core_bootstrap()
-
-if not _BOOT_OK:
-    print("    Skipping -- required inputs missing.")
+if len(core_txns) == 0:
+    print("    No core-competition transactions. Skipping.")
 else:
     total_trans = len(core_txns)
     total_accts = core_txns['primary_account_num'].nunique()
@@ -87,7 +61,7 @@ else:
     fig.suptitle("Core Competitive Exposure — Banks + BNPL",
                  fontsize=30, fontweight='bold',
                  color=GEN_COLORS['dark_text'], y=1.04)
-    fig.text(0.5, 0.97, CORE_SCOPE_NOTE,
+    fig.text(0.5, 0.97, SCOPE_NOTE,
              ha='center', fontsize=14, color=GEN_COLORS['muted'], style='italic')
 
     plt.tight_layout()
