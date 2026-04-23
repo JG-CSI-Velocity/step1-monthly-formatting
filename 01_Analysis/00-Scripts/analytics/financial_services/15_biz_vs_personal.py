@@ -55,9 +55,12 @@ if 'business_flag' in all_finserv_trans.columns:
     plt.subplots_adjust(bottom=0.08)
     plt.show()
 
-    biz_pct = biz_split.loc['Business', 'accounts'] / biz_split['accounts'].sum() * 100
-    if biz_pct > 20:
-        print(f"\n    OPPORTUNITY: Business accounts represent {biz_pct:.0f}% of external FinServ leakage.")
-        print("    These are high-value relationships -- prioritize commercial product offers.")
+    if 'Business' in biz_split.index:
+        biz_pct = biz_split.loc['Business', 'accounts'] / biz_split['accounts'].sum() * 100
+        if biz_pct > 20:
+            print(f"\n    OPPORTUNITY: Business accounts represent {biz_pct:.0f}% of external FinServ leakage.")
+            print("    These are high-value relationships -- prioritize commercial product offers.")
+    else:
+        print("\n    No business accounts in data -- personal-only portfolio.")
 else:
     print("No business_flag column available. Skipping Business vs Personal analysis.")
