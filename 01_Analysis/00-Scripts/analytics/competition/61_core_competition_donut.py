@@ -1,0 +1,122 @@
+# ===========================================================================
+# CORE COMPETITION DONUT (Ex Wallets + P2P, Keep BNPL)
+# ===========================================================================
+# Category breakdown of competitor activity EXCLUDING wallets + P2P,
+# KEEPING BNPL. Companion to 60 (KPI strip).
+# ===========================================================================
+
+from pathlib import Path
+import matplotlib.pyplot as plt
+import matplotlib.patheffects as pe
+from matplotlib.gridspec import GridSpec
+
+
+def _load_core_bootstrap():
+    try:
+        here = Path(__file__).resolve().parent
+    except NameError:
+        here = Path.cwd()
+    bp = here / '_core_bootstrap.py'
+    if not bp.exists():
+        for p in [here, *here.parents[:10]]:
+            cand = p / '_core_bootstrap.py'
+            if cand.exists():
+                bp = cand; break
+            cand = p / 'competition' / '_core_bootstrap.py'
+            if cand.exists():
+                bp = cand; break
+            hits = list(p.glob('**/_core_bootstrap.py'))
+            if hits:
+                bp = hits[0]; break
+    if not bp.exists():
+        raise FileNotFoundError(
+            "Cannot find _core_bootstrap.py. Place it next to this cell "
+            "(competition/_core_bootstrap.py)."
+        )
+    exec(compile(bp.read_text(), str(bp), 'exec'), globals())
+
+
+_load_core_bootstrap()
+
+if not _BOOT_OK:
+    print("    Skipping -- required inputs missing.")
+elif len(core_txns) == 0:
+    print("    No core-competition transactions. Skipping.")
+else:
+    cat_agg = (
+        core_txns.groupby('competitor_category')
+        .agg(total_transactions=('amount', 'count'),
+             total_spend=('amount', 'sum'))
+        .sort_values('total_transactions', ascending=False)
+    )
+    cat_accts = (core_txns.groupby('competitor_category')['primary_account_num']
+                 .nunique().rename('unique_accounts'))
+    cat_comps = (core_txns.groupby('competitor_category')['competitor_match']
+                 .nunique().rename('n_competitors'))
+    cat_agg = cat_agg.join(cat_accts).join(cat_comps)
+    cat_agg['unique_accounts'] = cat_agg['unique_accounts'].fillna(0).astype(int)
+    cat_agg['n_competitors'] = cat_agg['n_competitors'].fillna(0).astype(int)
+    cat_agg.index = cat_agg.index.str.replace('_', ' ').str.title()
+
+    fig = plt.figure(figsize=(18, 9))
+    gs = GridSpec(1, 2, width_ratios=[1, 1.1], wspace=0.05)
+
+    ax_d = fig.add_subplot(gs[0])
+    colors = [CATEGORY_PALETTE.get(c, GEN_COLORS['muted']) for c in cat_agg.index]
+    wedges, _, autos = ax_d.pie(
+        cat_agg['total_transactions'], labels=None, autopct='%1.0f%%',
+        colors=colors, startangle=90, pctdistance=0.78,
+        wedgeprops=dict(width=0.45, edgecolor='white', linewidth=3),
+    )
+    for t in autos:
+        t.set_fontsize(18); t.set_fontweight('bold'); t.set_color('white')
+        t.set_path_effects([pe.withStroke(linewidth=2, foreground='#333333')])
+    ax_d.text(0, 0, f"{int(cat_agg['total_transactions'].sum()):,}\nCore Txns",
+              ha='center', va='center',
+              fontsize=20, fontweight='bold', color=GEN_COLORS['dark_text'])
+    ax_d.set_title("Transaction Share by Category",
+                   fontsize=22, fontweight='bold',
+                   color=GEN_COLORS['dark_text'], pad=18)
+
+    ax_t = fig.add_subplot(gs[1]); ax_t.axis('off')
+    y0 = 0.95
+    step = 0.78 / max(len(cat_agg), 1)
+    for h, x in [('Category', 0.02), ('Txns', 0.50), ('Accts', 0.66),
+                 ('$ Spend', 0.78), ('# Comp', 0.92)]:
+        ax_t.text(x, y0 + 0.02, h, fontsize=14, fontweight='bold',
+                  color=GEN_COLORS['muted'], transform=ax_t.transAxes)
+    for i, (cat, row) in enumerate(cat_agg.iterrows()):
+        yy = y0 - (i + 1) * step
+        color = CATEGORY_PALETTE.get(cat, GEN_COLORS['muted'])
+        ax_t.add_patch(plt.Rectangle((0.0, yy - 0.02), 0.018, 0.03,
+                                     facecolor=color, transform=ax_t.transAxes,
+                                     clip_on=False))
+        ax_t.text(0.02, yy, cat, fontsize=14, fontweight='bold',
+                  color=GEN_COLORS['dark_text'], transform=ax_t.transAxes, va='center')
+        ax_t.text(0.50, yy, f"{int(row['total_transactions']):,}",
+                  fontsize=14, fontweight='bold', color=color,
+                  transform=ax_t.transAxes, va='center')
+        ax_t.text(0.66, yy, f"{int(row['unique_accounts']):,}",
+                  fontsize=13, color=GEN_COLORS['dark_text'],
+                  transform=ax_t.transAxes, va='center')
+        ax_t.text(0.78, yy, f"${row['total_spend']:,.0f}",
+                  fontsize=13, color=GEN_COLORS['dark_text'],
+                  transform=ax_t.transAxes, va='center')
+        ax_t.text(0.92, yy, f"{int(row['n_competitors'])}",
+                  fontsize=13, color=GEN_COLORS['dark_text'],
+                  transform=ax_t.transAxes, va='center')
+
+    fig.suptitle("Category Breakdown — Banks + BNPL (Ex Wallets + P2P)",
+                 fontsize=26, fontweight='bold',
+                 color=GEN_COLORS['dark_text'], y=1.02)
+    fig.text(0.5, 0.965, CORE_SCOPE_NOTE,
+             ha='center', fontsize=13, color=GEN_COLORS['muted'], style='italic')
+
+    plt.tight_layout()
+    plt.savefig('competition_61_core_donut.png', dpi=160, bbox_inches='tight')
+    plt.show()
+    plt.close(fig)
+
+    print(f"\n    Core donut: {len(cat_agg)} categories, "
+          f"{int(cat_agg['total_transactions'].sum()):,} transactions, "
+          f"{core_txns['primary_account_num'].nunique():,} accounts.")
