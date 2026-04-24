@@ -362,7 +362,16 @@ def main():
         import shutil
         gc.collect()  # release any file handles held by python-pptx/matplotlib
 
-        pptx_files = [f for f in output_dir.iterdir() if f.suffix == '.pptx']
+        try:
+            pptx_files = [f for f in output_dir.iterdir() if f.suffix == '.pptx']
+        except OSError as _e:
+            # Network mount (M:) can drop during long runs -- WinError 53 / 67.
+            # Analysis already completed, so warn and skip the PPTX move.
+            print()
+            print(f"  WARNING: Could not access {output_dir} to move PPTX files.")
+            print(f"    {_e}")
+            print(f"    The M: drive may have disconnected. Check the folder manually once it reconnects.")
+            pptx_files = []
         for pf in pptx_files:
             dest = pptx_dir / pf.name
             for _attempt in range(3):
@@ -397,16 +406,22 @@ def main():
 
         # List output files
         print("    Excel/Data:")
-        for f in output_dir.iterdir():
-            if f.suffix in ('.xlsx', '.json') and client_id in f.name:
-                size_mb = f.stat().st_size / (1024 * 1024)
-                print(f"      {f.name} ({size_mb:.1f} MB)")
+        try:
+            for f in output_dir.iterdir():
+                if f.suffix in ('.xlsx', '.json') and client_id in f.name:
+                    size_mb = f.stat().st_size / (1024 * 1024)
+                    print(f"      {f.name} ({size_mb:.1f} MB)")
+        except OSError as _e:
+            print(f"      (could not list {output_dir}: {_e})")
 
         print("    PowerPoint:")
-        for f in pptx_dir.iterdir():
-            if f.suffix == '.pptx':
-                size_mb = f.stat().st_size / (1024 * 1024)
-                print(f"      {f.name} ({size_mb:.1f} MB)")
+        try:
+            for f in pptx_dir.iterdir():
+                if f.suffix == '.pptx':
+                    size_mb = f.stat().st_size / (1024 * 1024)
+                    print(f"      {f.name} ({size_mb:.1f} MB)")
+        except OSError as _e:
+            print(f"      (could not list {pptx_dir}: {_e})")
 
         print("=" * 70)
         print()

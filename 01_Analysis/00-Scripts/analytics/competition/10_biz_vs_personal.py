@@ -95,9 +95,12 @@ if len(all_competitor_data) > 0:
         plt.show()
 
         # Opportunity callout
-        biz_pct = biz_split.loc['Business', 'transactions'] / biz_split['transactions'].sum() * 100
-        if biz_pct > 30:
-            print(f"\n    OPPORTUNITY: Business accounts represent {biz_pct:.0f}% of competitor transactions.")
-            print("    High-value business relationships at risk -- prioritize commercial retention.")
+        if 'Business' in biz_split.index:
+            biz_pct = biz_split.loc['Business', 'transactions'] / biz_split['transactions'].sum() * 100
+            if biz_pct > 30:
+                print(f"\n    OPPORTUNITY: Business accounts represent {biz_pct:.0f}% of competitor transactions.")
+                print("    High-value business relationships at risk -- prioritize commercial retention.")
+        else:
+            print("\n    No business accounts in data -- personal-only portfolio.")
     else:
         print("No business_flag column found in competitor data.")

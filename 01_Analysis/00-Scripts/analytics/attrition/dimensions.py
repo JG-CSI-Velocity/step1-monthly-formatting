@@ -67,9 +67,19 @@ def _by_branch(ctx: PipelineContext) -> list[AnalysisResult]:
 
     bmap = getattr(ctx.settings, "branch_mapping", None) or {}
 
-    # Use the system-wide L12M window
-    ctx.compute_l12m_window()
-    l12m_closed = closed[ctx.in_l12m(closed["Date Closed"])].copy()
+    # Use the system-wide L12M window (set by steps/subsets.py on ctx.start_date / ctx.end_date)
+    sd, ed = ctx.start_date, ctx.end_date
+    if sd is None or ed is None:
+        return [
+            AnalysisResult(
+                slide_id="A9.4",
+                title="L12M Attrition by Branch",
+                success=False,
+                error="L12M window not set on context",
+            )
+        ]
+    _dc = pd.to_datetime(closed["Date Closed"], errors="coerce")
+    l12m_closed = closed[(_dc >= pd.Timestamp(sd)) & (_dc <= pd.Timestamp(ed))].copy()
 
     # Denominator: accounts open at start of L12M window
     # Approximation: currently open + closed in L12M
@@ -124,7 +134,7 @@ def _by_branch(ctx: PipelineContext) -> list[AnalysisResult]:
                 va="center",
                 fontsize=DATA_LABEL_SIZE - 4,
             )
-        _l12m_label = f"{ctx.l12m_start.strftime('%b %Y')} - {ctx.l12m_end.strftime('%b %Y')}"
+        _l12m_label = f"{pd.Timestamp(sd).strftime('%b %Y')} - {pd.Timestamp(ed).strftime('%b %Y')}"
         ax.set_title(
             f"L12M Attrition Rate by Branch\n({_l12m_label})",
             fontsize=24,
@@ -168,7 +178,8 @@ def _by_branch(ctx: PipelineContext) -> list[AnalysisResult]:
 
     # --- A9.4b: First-Year Close Rate by Branch ---
     # Accounts opened in L12M that also closed in L12M
-    l12m_opened = all_data[ctx.in_l12m(all_data["Date Opened"])].copy()
+    _do = pd.to_datetime(all_data["Date Opened"], errors="coerce")
+    l12m_opened = all_data[(_do >= pd.Timestamp(sd)) & (_do <= pd.Timestamp(ed))].copy()
     l12m_opened = _apply_branch_map(l12m_opened, bmap)
 
     if not l12m_opened.empty:
