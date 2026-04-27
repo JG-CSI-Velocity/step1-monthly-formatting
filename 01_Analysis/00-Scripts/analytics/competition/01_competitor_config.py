@@ -383,7 +383,68 @@ FED_DISTRICT_TOP_25 = {
 # To onboard a new client: copy an existing entry, change the ID/patterns.
 
 CLIENT_CONFIGS = {
-
+'1441': {  # First National Bank Alaska (Anchorage, AK)
+        'fed_district': '12',
+        'credit_unions': [
+            # Alaska USA FCU rebranded to Global Credit Union; largest CU in AK
+            'GLOBAL CREDIT UNION', 'GLOBAL FEDERAL CREDIT UNION', 'GLOBAL FCU', 'GLOBAL CU',
+            'ALASKA USA FEDERAL CREDIT UNION', 'ALASKA USA FCU', 'ALASKA USA',
+            # Credit Union 1 absorbed MAC FCU in 2025-2026 merger
+            'CREDIT UNION 1', 'CU1',
+            'MAC FEDERAL CREDIT UNION', 'MAC FCU',
+            # Southeast AK -- True North dominant in Juneau; Tongass dominant in Ketchikan
+            'TRUE NORTH FEDERAL CREDIT UNION', 'TRUE NORTH FCU', 'TRUE NORTH CU',
+            'TONGASS FEDERAL CREDIT UNION', 'TONGASS FCU',
+            # Interior AK -- Fairbanks
+            'SPIRIT OF ALASKA FEDERAL CREDIT UNION', 'SPIRIT OF ALASKA FCU', 'SPIRIT OF ALASKA',
+            # Anchorage / Mat-Su locals
+            'NORTHERN SKIES FEDERAL CREDIT UNION', 'NORTHERN SKIES FCU',
+            'MATANUSKA VALLEY FEDERAL CREDIT UNION', 'MATANUSKA VALLEY FCU', 'MVFCU',
+            # Multi-state CU with AK branches
+            'NUVISION FEDERAL CREDIT UNION', 'NUVISION CREDIT UNION', 'NUVISION FCU',
+            # Heavy military presence (JBER, Eielson AFB, Fort Wainwright)
+            'NAVY FEDERAL CREDIT UNION', 'NAVY FEDERAL CU',
+        ],
+        'local_banks': [
+            # KeyBank lives in District 4, not District 12 -- add explicitly for AK
+            'KEYBANK', 'KEY BANK',
+            # AK community banks not in Section B District 12 list
+            'NORTHRIM BANK',                       # Anchorage HQ; ~17 branches statewide
+            'MT. MCKINLEY BANK', 'MT MCKINLEY BANK', 'MOUNT MCKINLEY BANK',  # Fairbanks
+            'DENALI STATE BANK',                   # Acquired by Global CU 2025; may persist in tx data
+            'FIRST BANK',                          # Ketchikan HQ; Southeast AK -- watch for FP w/ FIRST BANK [other state]
+        ],
+        'custom': [],
+        'rollups': {
+            # --- Alaska USA -> Global Credit Union (rebrand) ---
+            'GLOBAL FEDERAL CREDIT UNION':           'GLOBAL CREDIT UNION',
+            'GLOBAL FCU':                            'GLOBAL CREDIT UNION',
+            'GLOBAL CU':                             'GLOBAL CREDIT UNION',
+            'ALASKA USA FEDERAL CREDIT UNION':       'GLOBAL CREDIT UNION',
+            'ALASKA USA FCU':                        'GLOBAL CREDIT UNION',
+            'ALASKA USA':                            'GLOBAL CREDIT UNION',
+            # --- MAC FCU -> Credit Union 1 (2025-2026 merger) ---
+            'MAC FEDERAL CREDIT UNION':              'CREDIT UNION 1',
+            'MAC FCU':                               'CREDIT UNION 1',
+            'CU1':                                   'CREDIT UNION 1',
+            # --- CU abbreviation variants ---
+            'TRUE NORTH FEDERAL CREDIT UNION':       'TRUE NORTH FCU',
+            'TRUE NORTH CU':                         'TRUE NORTH FCU',
+            'TONGASS FEDERAL CREDIT UNION':          'TONGASS FCU',
+            'SPIRIT OF ALASKA FEDERAL CREDIT UNION': 'SPIRIT OF ALASKA FCU',
+            'SPIRIT OF ALASKA':                      'SPIRIT OF ALASKA FCU',
+            'NORTHERN SKIES FEDERAL CREDIT UNION':   'NORTHERN SKIES FCU',
+            'MATANUSKA VALLEY FEDERAL CREDIT UNION': 'MATANUSKA VALLEY FCU',
+            'MVFCU':                                 'MATANUSKA VALLEY FCU',
+            'NUVISION FEDERAL CREDIT UNION':         'NUVISION CREDIT UNION',
+            'NUVISION FCU':                          'NUVISION CREDIT UNION',
+            'NAVY FEDERAL CU':                       'NAVY FEDERAL CREDIT UNION',
+            # --- Local bank variants ---
+            'KEY BANK':                              'KEYBANK',
+            'MT MCKINLEY BANK':                      'MT. MCKINLEY BANK',
+            'MOUNT MCKINLEY BANK':                   'MT. MCKINLEY BANK',
+        },
+    },
     '1776': {  # CoastHills (Central Coast, CA)
         'fed_district': '12',
         'credit_unions': [
