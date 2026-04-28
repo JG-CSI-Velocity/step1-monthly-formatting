@@ -477,11 +477,23 @@ footer { text-align: center; padding: 28px; font-size: 11px; color: var(--faint)
             <button class="btn" id="genRunBtn" onclick="smartRunGen()">Format + Analyze + Build PPTX</button>
         </div>
 
-        <div class="grid-4" style="margin-bottom: 0;">
+        <div class="grid-4" style="margin-bottom: 16px;">
             <div class="p-card on" onclick="selectProd('ars')"><div class="p-name">ARS Full Suite</div><div class="p-count">22</div><div class="p-unit">modules</div><div class="p-time">~ 15-25 min</div></div>
             <div class="p-card" onclick="selectProd('txn')"><div class="p-name">Transaction</div><div class="p-count">22</div><div class="p-unit">sections</div><div class="p-time">~ 20-35 min</div></div>
             <div class="p-card" onclick="selectProd('combined')"><div class="p-name">Combined</div><div class="p-count">47</div><div class="p-unit">ARS + TXN</div><div class="p-time">~ 35-55 min</div></div>
             <div class="p-card" onclick="selectProd('dep')"><div class="p-name">Deposits</div><div class="p-count">15</div><div class="p-unit">modules</div><div class="p-time">~ 10-20 min</div></div>
+        </div>
+
+        <!-- Deck mode selector (3-story client deck restructure) -->
+        <div class="config-row" style="margin-bottom: 0; padding-top: 8px; border-top: 1px solid #E2E8F0;">
+            <div class="config-field" style="flex: 1;">
+                <div class="label">Deck Mode</div>
+                <select class="sel" id="deckModeSelect" onchange="curDeckMode = this.value;">
+                    <option value="full" selected>Full deck (all slides, ~70+)</option>
+                    <option value="client">Client deck (3 stories, &lt;40 slides)</option>
+                    <option value="supplementary">Supplementary deck (everything not in client deck)</option>
+                </select>
+            </div>
         </div>
     </div>
 
@@ -620,6 +632,13 @@ footer { text-align: center; padding: 28px; font-size: 11px; color: var(--faint)
                     <option value="combined">Combined (ARS + TXN)</option>
                 </select>
             </div>
+            <div class="config-field"><div class="label">Deck Mode</div>
+                <select class="sel" id="schedDeckMode">
+                    <option value="full">Full (all slides)</option>
+                    <option value="client">Client (3 stories, &lt;40 slides)</option>
+                    <option value="supplementary">Supplementary (rest)</option>
+                </select>
+            </div>
         </div>
         <div class="config-row" style="margin-bottom:16px;">
             <div class="config-field"><div class="label">Run on Day of Month</div>
@@ -710,6 +729,7 @@ const prodData = {
 };
 
 let curProd = 'ars';
+let curDeckMode = 'full';
 let selMods = new Set();
 
 function selectProd(key) {
@@ -993,7 +1013,7 @@ async function runGenReal() {
 
     // Start the run
     try {
-        const resp = await fetch(`/api/run?csm=${csm}&month=${month}&client_id=${clientId}&product=${curProd}`, {method: 'POST'});
+        const resp = await fetch(`/api/run?csm=${csm}&month=${month}&client_id=${clientId}&product=${curProd}&deck_mode=${curDeckMode}`, {method: 'POST'});
         if (!resp.ok) {
             const errText = await resp.text();
             st.textContent = 'Failed to start';
@@ -1619,6 +1639,7 @@ async function saveSchedule() {
         csm: document.getElementById('schedCsm').value,
         client_id: document.getElementById('schedClient').value,
         product: document.getElementById('schedProduct').value,
+        deck_mode: document.getElementById('schedDeckMode').value,
         day: parseInt(document.getElementById('schedDay').value),
         extras: document.getElementById('schedExtras').value,
     };

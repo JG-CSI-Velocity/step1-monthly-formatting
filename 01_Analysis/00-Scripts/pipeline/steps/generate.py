@@ -88,11 +88,27 @@ def _save_run_report(ctx: PipelineContext, report: list[SlideStatus]) -> None:
 def step_generate(ctx: PipelineContext) -> None:
     """Generate all output deliverables from analysis results.
 
-    Order: run report -> Excel workbook -> PowerPoint deck -> archive copy.
+    Order: deck-mode filter -> run report -> Excel workbook -> PowerPoint deck.
     Uses single-write pattern: build Excel once, then shutil.copy2 for master.
+
+    The deck-mode filter is a no-op unless ctx.client_config['deck_mode'] is
+    set to 'client' or 'supplementary' (default 'full' = legacy behavior).
+    See pipeline/steps/deck_filter.py and docs/deck/CLIENT_DECK_PLAN.md.
     """
     if not ctx.all_slides:
         logger.warning("No analysis results to generate deliverables from")
+        return
+
+    # Apply deck manifest filter (no-op for default 'full' mode)
+    try:
+        from ars_analysis.pipeline.steps.deck_filter import step_apply_deck_manifest
+        step_apply_deck_manifest(ctx)
+    except Exception as exc:
+        logger.warning("deck_filter step skipped due to error: {err}", err=exc)
+
+    # Re-check after filter -- a too-aggressive 'client' filter could empty everything
+    if not ctx.all_slides:
+        logger.warning("All slides filtered out by deck-mode -- nothing to generate")
         return
 
     # Build and save run report before deck build (diagnostics first)

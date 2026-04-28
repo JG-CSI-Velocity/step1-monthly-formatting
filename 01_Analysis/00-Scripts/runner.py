@@ -232,6 +232,10 @@ def run_ars(ctx: SharedContext) -> dict[str, SharedResult]:
         paths=paths,
         progress_callback=ctx.progress_callback,
     )
+    # Pass through deck_mode (full | client | supplementary) for the deck-mode
+    # filter step. See pipeline/steps/deck_filter.py and docs/deck/.
+    ars_ctx.deck_mode = (ctx.client_config or {}).get("deck_mode", "full")
+    ars_ctx.client_config = ctx.client_config or {}
 
     # 3b. Resolve PPTX template (M: drive > config > embedded fallback)
     _tpl = ccfg.get("TemplatePath")
@@ -383,6 +387,9 @@ def run_txn(ctx: SharedContext) -> dict[str, SharedResult]:
         paths=paths,
         progress_callback=ctx.progress_callback,
     )
+    # Pass through deck_mode for the deck-mode filter step (see deck_filter.py)
+    ars_ctx.deck_mode = (ctx.client_config or {}).get("deck_mode", "full")
+    ars_ctx.client_config = ctx.client_config or {}
 
     # Resolve template
     _tpl = ccfg.get("TemplatePath")
