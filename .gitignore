@@ -3,8 +3,31 @@ __pycache__/
 **/*.pyc
 
 # Pipeline output directories (contain client data)
-02_Presentations/
+# Ignore contents of 02_Presentations/ (client decks) but allow the Python
+# package skeleton (style/, scripts/, tests/, __init__.py, conftest.py).
+02_Presentations/*
 !02_Presentations/.gitkeep
+!02_Presentations/__init__.py
+!02_Presentations/polish.py
+!02_Presentations/conftest.py
+!02_Presentations/style/
+!02_Presentations/scripts/
+!02_Presentations/tests/
+!02_Presentations/README.md
+!02_Presentations/polish_windows.bat
+!02_Presentations/polish_mac.command
+!02_Presentations/update_polish.bat
+!02_Presentations/update_polish_via_git.bat
+!02_Presentations/decks_to_polish/
+!02_Presentations/polished/
+02_Presentations/tests/fixtures/*
+!02_Presentations/tests/fixtures/.gitkeep
+!02_Presentations/tests/fixtures/*.pptx
+02_Presentations/decks_to_polish/*
+!02_Presentations/decks_to_polish/README.txt
+!02_Presentations/decks_to_polish/.gitkeep
+02_Presentations/polished/*
+!02_Presentations/polished/.gitkeep
 04_Logs/
 !04_Logs/.gitkeep
 
