@@ -461,8 +461,17 @@ async def start_run(
     month: str,
     client_id: str,
     product: str = "ars",
+    deck_mode: str = "full",
 ):
-    """Start a full pipeline run: format (if needed) + analysis + PPTX."""
+    """Start a full pipeline run: format (if needed) + analysis + PPTX.
+
+    deck_mode controls slide filtering for the client deck restructure
+    (PR #97). One of: 'full' (default, all slides), 'client' (3-story
+    <40-slide deck), 'supplementary' (everything NOT in main deck).
+    """
+    if deck_mode not in ("full", "client", "supplementary"):
+        raise HTTPException(status_code=400, detail=f"Invalid deck_mode: {deck_mode!r}")
+
     run_id = f"{client_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:4]}"
 
     formatting_run = ARS_BASE / "00_Formatting" / "run.py"
@@ -477,6 +486,7 @@ async def start_run(
         "csm": csm,
         "month": month,
         "product": product,
+        "deck_mode": deck_mode,
         "started": datetime.now().isoformat(),
         "progress": 0,
         "current_step": "Starting...",
@@ -529,7 +539,7 @@ async def start_run(
 
             cmd = [sys.executable, "-u", str(analysis_run),
                    "--month", month, "--csm", csm, "--client", client_id,
-                   "--product", product]
+                   "--product", product, "--deck-mode", deck_mode]
             proc = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -764,7 +774,8 @@ async def run_schedule_now(schedule_id: str):
             # Run analysis
             cmd = [sys.executable, "-u", str(analysis_run),
                    "--month", month, "--csm", sched["csm"],
-                   "--client", sched["client_id"], "--product", product]
+                   "--client", sched["client_id"], "--product", product,
+                   "--deck-mode", sched.get("deck_mode", "full")]
             proc = subprocess.Popen(
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, encoding="utf-8", errors="replace", bufsize=1,
