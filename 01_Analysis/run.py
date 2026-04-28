@@ -127,6 +127,9 @@ def main():
     parser.add_argument("--product", type=str, default="ars",
                         choices=["ars", "txn", "combined"],
                         help="Analysis product: ars (default), txn (transaction only), combined (both)")
+    parser.add_argument("--deck-mode", type=str, default="full",
+                        choices=["full", "client", "supplementary"],
+                        help="Deck filter: full (default, all slides), client (3-story <40 slide deck per docs/deck/slide_manifest.json), supplementary (everything NOT in the client manifest)")
     args = parser.parse_args()
 
     # Resolve fuzzy CSM name early so logs and paths all use the same name
@@ -315,6 +318,7 @@ def main():
         client_config={
             "config_path": config_path,
             "client_id": client_id,
+            "deck_mode": args.deck_mode,
         },
     )
 

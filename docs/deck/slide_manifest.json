@@ -37,7 +37,7 @@
 
     {"n": 15, "id": "ics_divider",          "layout": 4,  "story": "ics",                 "modules": [], "conditional": "ics"},
     {"n": 16, "id": "ics_hero",             "layout": 2,  "story": "ics",                 "scripts": ["ICS_cohort/ics-40-exec-summary"], "conditional": "ics"},
-    {"n": 17, "id": "ics_three_panel",      "layout": 9,  "story": "ics",                 "scripts": ["ICS_cohort/ics-09-debit-by-branch", "ics-08-debit-by-product", "ics-16-age-by-ics-status"], "conditional": "ics"},
+    {"n": 17, "id": "ics_three_panel",      "layout": 9,  "story": "ics",                 "scripts": ["ICS_cohort/ics-09-debit-by-branch", "ICS_cohort/ics-08-debit-by-product", "ICS_cohort/ics-16-age-by-ics-status"], "conditional": "ics"},
     {"n": 18, "id": "ics_vs_nonics",        "layout": 2,  "story": "ics",                 "scripts": ["ICS_cohort/ics-41-ics-vs-nonics-activity", "ICS_cohort/ics-44-vis-headline-comparison"], "conditional": "ics"},
     {"n": 19, "id": "ics_so_what",          "layout": 12, "story": "ics",                 "modules": ["insights.conclusions"], "filter": "ics", "conditional": "ics"},
 
@@ -75,9 +75,34 @@
     "Run validator after each manifest edit: python3 docs/deck/validate_manifest.py",
     "Create NEW:executive/opportunity_stack.py (waterfall summing 4 story-level $ opportunities)",
     "Add 'top3', 'ars', 'ics', 'competition', 'financial_services' filter support to insights.conclusions",
-    "Add --mode=client / --mode=supplementary flags to runner.py (reads this manifest)",
-    "Implement script-path resolution in deck assembly (currently only resolves module IDs)",
-    "Implement conditional ICS insertion (predicate: ICS_cohort produced any output)",
-    "Audit cross_cohort/ for additional slides worth promoting (50_ics_competition_overlay, 73_response_persistence, 80_attrition_by_ics)"
-  ]
+    "Track source_script in AnalysisResult so deck filter can be per-script (currently per-section)",
+    "Implement conditional ICS insertion (predicate: ICS_cohort produced any output)"
+  ],
+  "shipped": [
+    "Manifest validator (docs/deck/validate_manifest.py)",
+    "--deck-mode {full,client,supplementary} CLI flag in run.py",
+    "deck_mode plumbed through PipelineContext.client_config to ARSContext.deck_mode in runner.py",
+    "Section-level deck filter (pipeline/steps/deck_filter.py) wired into step_generate"
+  ],
+  "cross_cohort_promotion_candidates": {
+    "description": "12 scripts in analytics/cross_cohort/ added to main on 2026-04-17 audit window. Several are directly relevant to the 3 stories. Conservative wiring done; remaining promotions need user sign-off.",
+    "already_wired": [
+      "cross_cohort/40_holy_grail_funnel.py -> slide 5 (ARS hero)",
+      "cross_cohort/20_ars_response_lift.py -> slide 5 (ARS hero, supporting)",
+      "cross_cohort/96_composite_scorecard.py -> slide 3 (exec scorecard)"
+    ],
+    "promotion_recommended": [
+      "cross_cohort/73_response_persistence.py -> swap with mailer.cohort on slide 10 (more rigorous cohort-matched analysis)",
+      "cross_cohort/60_revenue_per_account.py -> add to slide 11 ROI (interchange proxy with cohort matching)",
+      "cross_cohort/80_attrition_by_ics.py -> swap with attrition.impact on slide 12 IF ICS data present",
+      "cross_cohort/50_ics_competition_overlay.py -> NEW slide between Story 2 (ICS) and Story 3 (Competition) -- bridges them",
+      "cross_cohort/02_cohort_kpi_panel.py -> add to slide 8 (response by wave) as supporting view"
+    ],
+    "supplementary_only": [
+      "cross_cohort/10_activation_speed.py",
+      "cross_cohort/30_tier_progression.py",
+      "cross_cohort/71_mailer_saturation.py",
+      "cross_cohort/01_cohort_config.py (config script, not a slide)"
+    ]
+  }
 }
